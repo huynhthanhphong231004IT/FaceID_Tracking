@@ -75,7 +75,7 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
       <td width="50%"><img src="images/Demo_02.jpg"></td>
     </tr>
   </table>
-  <p><i>Quá trình kiểm tra chất lượng khung hình và xác minh đối tượng từ luồng video đầu vào.</i></p>
+  <p><i>Giao diện thử nghiệm thực tế của hệ thống Face Tracker trên các luồng đầu vào khác nhau: (a) Luồng webcam thời gian thực với đối tượng đã xác thực (ID 00001), và (b) Luồng video tệp (VD_01.mp4) trong quá trình xác minh.</i></p>
 </div>
 
 # Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
