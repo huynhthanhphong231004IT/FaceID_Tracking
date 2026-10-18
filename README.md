@@ -38,7 +38,7 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 
 <div align="center">
 <p align="center">
-  <img src="images/Anh_03.png" width="800">
+  <img src="images/Anh_03.png" width="600">
   <br>
   <i> Trực quan hóa tiến trình theo dõi và lọc tư thế khuôn mặt theo các mốc thời gian ($t = 0,0\text{ s}$ đến $11,5\text{ s}$). Hệ thống xác nhận khuôn mặt ở các góc nhìn chính diện ($t = 0,0\text{ s}, 2,3\text{ s}, 11,5\text{ s}$) và tự động loại bỏ các góc quay vượt ngưỡng cho phép ($t = 4,6\text{ s}, 6,9\text{ s}, 9,2\text{ s}$).</i>
   
@@ -48,7 +48,7 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 
 <div align="center">
 <p align="center">
-  <img src="images/Anh_02.png" width="800">
+  <img src="images/Anh_02.png" width="600">
   <br>
   <i>Biểu đồ phân tích đặc trưng theo thời gian của video VD_01.mp4 (346 khung hình, 29,97 FPS, 720 x 1280). Từ trên xuống dưới: độ sáng trung bình, độ sắc nét (phương sai Laplacian), và mức độ chuyển động giữa các khung hình kề nhau.</i>
 </p>
