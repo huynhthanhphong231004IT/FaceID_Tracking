@@ -337,53 +337,51 @@ $$
 
 ---
 
-<h2>9. Theo vết đa đối tượng và bỏ phiếu thời gian</h2>
+## 9. Theo vết đa đối tượng và bỏ phiếu thời gian
 
-<h3>9.1 Theo vết dựa trên IoU</h3>
+### 9.1 Theo vết dựa trên IoU
 
-<p>
-  Mỗi hộp phát hiện được gán cho một track dựa trên ma trận IoU giữa hộp hiện tại và hộp cuối của track, theo kiểu tham lam giống SORT nhưng không dùng bộ lọc Kalman:
-</p>
+Mỗi hộp phát hiện được gán cho một track dựa trên ma trận IoU giữa hộp hiện tại và hộp cuối của track, theo kiểu tham lam giống SORT [[11]](#18-tài-liệu-tham-khảo) nhưng không dùng bộ lọc Kalman:
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\mathrm{IoU}_{dt}\ge\tau_{\mathrm{iou}}=0.30\ \Rightarrow\ \text{ứng&space;viên&space;ghép};\qquad\text{track&space;bị&space;xoá&space;nếu&space;}\text{missed}>20\text{&space;khung&space;hình}" title="IoU Tracking Condition" />
-</p>
+$$
+\mathrm{IoU}_{dt}\ge\tau_{\mathrm{iou}}=0.30\ \Rightarrow\ \text{ứng viên ghép};\qquad
+\text{track bị xoá nếu } \text{missed}>20 \text{ khung hình}
+$$
 
-<p>
-  Detection không ghép được sẽ tạo track mới (<code>track_id</code> tăng dần). Cách đơn giản này phù hợp với camera tĩnh và mặt di chuyển chậm; nhược điểm là dễ đổi ID khi các mặt giao nhau nhanh.
-</p>
+Detection không ghép được sẽ tạo track mới (`track_id` tăng dần). Cách đơn giản này phù hợp với camera tĩnh và mặt di chuyển chậm; nhược điểm là dễ đổi ID khi các mặt giao nhau nhanh (xem mục 15.5).
 
-<h3>9.2 Máy trạng thái của track</h3>
+### 9.2 Máy trạng thái của track
 
+```mermaid
 stateDiagram-v2
-    [*] --> PENDING: track mới
-    PENDING --> KNOWN: N phiếu liên tiếp cùng person_id
-    PENDING --> UNKNOWN: N phiếu liên tiếp đều là None
-    UNKNOWN --> KNOWN: khớp DB đồng thuận / auto-enroll
-    KNOWN --> UNKNOWN: N phiếu None liên tiếp
-    KNOWN --> KNOWN: đổi sang person_id khác sau N phiếu
+    [*] --> PENDING: track mới
+    PENDING --> KNOWN: N phiếu liên tiếp cùng person_id
+    PENDING --> UNKNOWN: N phiếu liên tiếp đều là None
+    UNKNOWN --> KNOWN: khớp DB đồng thuận / auto-enroll
+    KNOWN --> UNKNOWN: N phiếu None liên tiếp
+    KNOWN --> KNOWN: đổi sang person_id khác sau N phiếu
+```
 
-<h3>9.3 Quy tắc bỏ phiếu đồng thuận</h3>
+### 9.3 Quy tắc bỏ phiếu đồng thuận
 
-<p>
-  Mỗi track giữ hàng đợi <img src="https://latex.codecogs.com/svg.image?V=(v_{t-N&plus;1},\dots,v_t)" title="Voting Queue" /> gồm <img src="https://latex.codecogs.com/svg.image?N=5" title="N=5" /> phiếu gần nhất, <img src="https://latex.codecogs.com/svg.image?v_t\in\mathcal{G}\cup\{\varnothing\}" title="v_t" /> (chỉ thêm phiếu khi khung mặt <code>is_good</code>). Trạng thái chỉ đổi khi <strong>đồng thuận tuyệt đối</strong>:
-</p>
+Mỗi track giữ hàng đợi $V=(v_{t-N+1},\dots,v_t)$ gồm $N=5$ phiếu gần nhất, $v_t\in\mathcal{G}\cup\{\varnothing\}$ (chỉ thêm phiếu khi khung mặt `is_good`). Trạng thái chỉ đổi khi **đồng thuận tuyệt đối**:
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\text{state}=\begin{cases}\text{KNOWN}(g)&\text{nếu&space;}|V|=N,\&space;v_i=g\space\forall&space;i,\&space;g\in\mathcal{G}\\\text{UNKNOWN}&\text{nếu&space;}|V|=N,\&space;v_i=\varnothing\space\forall&space;i\\\text{giữ&space;nguyên}&\text{ngược&space;lại}\end{cases}" title="Consensus Voting State" />
-</p>
+$$
+\text{state}=
+\begin{cases}
+\text{KNOWN}(g) & \text{nếu } |V|=N,\ v_i=g\ \forall i,\ g\in\mathcal{G}\\
+\text{UNKNOWN} & \text{nếu } |V|=N,\ v_i=\varnothing\ \forall i\\
+\text{giữ nguyên} & \text{ngược lại}
+\end{cases}
+$$
 
-<p>
-  Độ tin cậy của track được làm mượt bằng trung bình trượt mũ (EMA):
-</p>
+Độ tin cậy của track được làm mượt bằng trung bình trượt mũ (EMA):
 
-<p align="center">
-  <img src="https://latex.codecogs.com/svg.image?\bar{s}_t=0.7\,\bar{s}_{t-1}&plus;0.3\,s_t" title="EMA Confidence Smoothing" />
-</p>
+$$
+\bar s_t=0.7\,\bar s_{t-1}+0.3\,s_t
+$$
 
-<p>
-  <strong>Lợi ích</strong>: nếu xác suất một khung bị nhận sai là <img src="https://latex.codecogs.com/svg.image?p" title="p" /> thì xác suất cả <img src="https://latex.codecogs.com/svg.image?N" title="N" /> khung cùng sai theo <em>cùng một</em> danh tính chỉ cỡ <img src="https://latex.codecogs.com/svg.image?\le&space;p^N" title="p^N" /> (xét xấp xỉ độc lập), giảm mạnh nhận nhầm và hiện tượng nhấp nháy nhãn, đổi lại độ trễ xác nhận khoảng <img src="https://latex.codecogs.com/svg.image?N" title="N" /> khung hình hợp lệ.
-</p>
+**Lợi ích**: nếu xác suất một khung bị nhận sai là $p$ thì xác suất cả $N$ khung cùng sai theo *cùng một* danh tính chỉ cỡ $\le p^N$ (xét xấp xỉ độc lập), giảm mạnh nhận nhầm và hiện tượng nhấp nháy nhãn, đổi lại độ trễ xác nhận khoảng $N$ khung hình hợp lệ.
 
 ---
 
