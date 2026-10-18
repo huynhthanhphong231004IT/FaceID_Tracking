@@ -34,6 +34,29 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 !git clone https://github.com/huynhthanhphong231004IT/FaceID_Tracking.git
 ```
 
+# Evaluation and analysis
+
+<div align="center">
+<p align="center">
+  <img src="images/Anh_02.png" width="800">
+  <br>
+  <i>Biểu đồ phân tích đặc trưng theo thời gian của video VD_01.mp4 (346 khung hình, 29,97 FPS, 720 x 1280). Từ trên xuống dưới: độ sáng trung bình, độ sắc nét (phương sai Laplacian), và mức độ chuyển động giữa các khung hình kề nhau.</i>
+</p>
+</div>
+
+
+Đoạn video `VD_01.mp4` là dữ liệu kiểm thử lý tưởng nhờ chứa đựng các thử thách kỹ thuật đa dạng, ép hệ thống phải hoạt động trong cả điều kiện thường lẫn các tình huống biên (edge cases). Sự đan xen giữa các khoảng tín hiệu êm đềm và các pha biến động đột ngột (như độ sáng tăng vọt ở cuối hay chuyển động chập nhấp liên tục) giúp đánh giá chính xác khả năng thích ứng và độ bền của thuật toán trước hiện tượng nhiễu hay thay đổi ngữ cảnh. Bên cạnh đó, các thông số chuẩn HD cùng 29,97 FPS tạo ra một bài test tiệm cận kịch bản thực tế nhưng vẫn tối ưu được chi phí tính toán khi chạy thử nghiệm nhiều lần. Qua đó, kết quả thu được phản ánh chân thực hiệu năng thực tế của hệ thống thay vì chỉ kiểm thử trong điều kiện phòng thí nghiệm hoàn hảo.
+
+<div align="center">
+<p align="center">
+  <img src="images/Anh_01.png" width="600">
+  <br>
+  <i>Đánh giá hiệu năng hệ thống qua chất lượng theo dõi, bộ lọc tư thế đầu và độ trễ tính toán. (a) Biến thiên theo thời gian của các chỉ số hiệu năng đã chuẩn hóa. (b) Ước lượng tư thế đầu (Yaw, Pitch, Roll) cùng các khoảng khung hình bị loại bỏ. (c) Phân bố khung hình chấp nhận (n=209) và loại bỏ (n=135) trên không gian Yaw-Pitch. (d) Thống kê nguyên nhân loại bỏ khuôn mặt. (e) Phân bố khoảng cách Cosine của các đặc trưng khuôn mặt cùng ngưỡng khớp/cập nhật. (f) Độ tin cậy khớp so với góc Yaw tuyệt đối. (g) Thời gian xử lý trung bình từng mô-đun. (h) Biến thiên độ trễ theo thời gian so với giới hạn thời gian thực.</i>
+</p>
+</div>
+
+Đánh giá tổng thể cho thấy bộ lọc chất lượng (quality-gate) vận hành hiệu quả khi loại bỏ chính xác 135 khung hình vượt ngưỡng nghiêng mặt ($\vert{}\text{Yaw}\vert{} > 20^\circ$ hoặc $\vert{}\text{Pitch}\vert{} > 20^\circ$) [Hình b, c, d], giúp đảm bảo khoảng cách Cosine của các đặc trưng khuôn mặt tập trung ở vùng an toàn ($<0.1$) và duy trì độ tin cậy khớp cao [Hình e, f]. Tuy nhiên, hệ thống đối mặt với nghẽn cổ chai lớn về mặt thời gian thực: mô-đun YOLO ($178\text{ ms}$) và ArcFace ($116\text{ ms}$) chiếm phần lớn chi phí tính toán [Hình g], khiến tổng độ trễ dao động từ $10^2$ đến $10^3\text{ ms}$—vượt xa giới hạn thời gian thực (real-time budget) [Hình h] và đẩy tỉ lệ FPS thực tế xuống mức rất thấp ($\approx 0.1 \text{--} 0.4$) [Hình a]. Điều này khẳng định bộ lọc góc mặt giúp tối ưu độ chính xác nhận diện nhưng hệ thống cần được tối ưu hóa phần cứng (như TensorRT/GPU acceleration) hoặc tinh gọn mô hình để đáp ứng yêu cầu xử lý thời gian thực.
+
 # Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
 
 > Tài liệu cơ sở lý thuyết của hệ thống nhận diện và tái định danh (Re-ID) khuôn mặt nhiều người theo thời gian thực. Nội dung trình bày theo cấu trúc của một bài báo khoa học: bài toán, kiến trúc, từng module với công thức, siêu tham số, phương pháp đánh giá và tài liệu tham khảo.
