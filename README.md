@@ -74,19 +74,19 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 </div>
 
 
-Hệ thống thực hiện **(1)phát hiện → (2)căn chỉnh → (3)lọc chất lượng → (4)trích xuất embedding → (5)so khớp → (6)theo vết → (7)xác nhận danh tính** trên luồng video (webcam hoặc file). Các đặc điểm chính:
+Hệ thống thực hiện <mark> (1) phát hiện → (2) căn chỉnh → (3) lọc chất lượng → (4) trích xuất embedding → (5) so khớp → (6) theo vết → (7) xác nhận danh tính</mark> trên luồng video (webcam hoặc file). Các đặc điểm chính:
 
-\- **Phát hiện**: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
+\- Phát hiện: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
 
-\- **Biểu diễn**: ArcFace (`buffalo_l`, ResNet-50 backbone, embedding 512 chiều, chuẩn hoá L2).
+\- Biểu diễn: ArcFace (`buffalo_l`, ResNet-50 backbone, embedding 512 chiều, chuẩn hoá L2).
 
-\- **Lọc chất lượng**: ước lượng góc đầu (yaw/pitch/roll) bằng bài toán PnP từ 5 landmark và độ nét bằng phương sai Laplacian; chỉ khung hình đạt chuẩn mới được dùng để nhận diện.
+\- Lọc chất lượng: ước lượng góc đầu (yaw/pitch/roll) bằng bài toán PnP từ 5 landmark và độ nét bằng phương sai Laplacian; chỉ khung hình đạt chuẩn mới được dùng để nhận diện.
 
-\- **Ổn định danh tính**: bỏ phiếu đồng thuận trên $N$ khung hình liên tiếp trên từng track.
+\- Ổn định danh tính: bỏ phiếu đồng thuận trên $N$ khung hình liên tiếp trên từng track.
 
-\- **Học liên tục**: cập nhật vector trung bình theo thời gian và **tự đăng ký** người lạ khi bằng chứng đủ nhất quán.
+\- Học liên tục: cập nhật vector trung bình theo thời gian và tự đăng ký người lạ khi bằng chứng đủ nhất quán.
 
-\- **Lưu trữ**: mỗi người được biểu diễn bằng **một vector trung bình** (centroid) lưu trong CSV.
+\- Lưu trữ: mỗi người được biểu diễn bằng một vector trung bình (centroid) lưu trong CSV.
 
 ---
 
@@ -161,7 +161,7 @@ sequenceDiagram
 
 ### 4.1 Mô hình
 
-YOLOv8 [[1]](#18-tài-liệu-tham-khảo) là bộ phát hiện một giai đoạn, **anchor-free** với đầu dự đoán tách rời (*decoupled head*) cho phân loại và hồi quy hộp. Biến thể *face* bổ sung nhánh **keypoints** dự đoán 5 điểm landmark (hai mắt, mũi, hai khoé miệng), theo ý tưởng của YOLOv5-Face [[2]](#18-tài-liệu-tham-khảo) và pose head của YOLOv8-Pose.
+YOLOv8 [[1]](#18-tài-liệu-tham-khảo) là bộ phát hiện một giai đoạn, anchor-free với đầu dự đoán tách rời (decoupled head) cho phân loại và hồi quy hộp. Biến thể face bổ sung nhánh keypoints dự đoán 5 điểm landmark (hai mắt, mũi, hai khoé miệng), theo ý tưởng của YOLOv5-Face [[2]](#18-tài-liệu-tham-khảo) và pose head của YOLOv8-Pose.
 
 Hộp bao được hồi quy dưới dạng phân phối rời rạc trên $r+1$ bin (Distribution Focal Loss) [[3]](#18-tài-liệu-tham-khảo):
 
@@ -377,7 +377,7 @@ stateDiagram-v2
 
 ### 9.3 Quy tắc bỏ phiếu đồng thuận
 
-Mỗi track giữ hàng đợi $V=(v_{t-N+1},\dots,v_t)$ gồm $N=5$ phiếu gần nhất, $v_t\in\mathcal{G}\cup\{\varnothing\}$ (chỉ thêm phiếu khi khung mặt `is_good`). Trạng thái chỉ đổi khi **đồng thuận tuyệt đối**:
+Mỗi track giữ hàng đợi $V=(v_{t-N+1},\dots,v_t)$ gồm $N=5$ phiếu gần nhất, $v_t\in\mathcal{G}\cup\{\varnothing\}$ (chỉ thêm phiếu khi khung mặt `is_good`). Trạng thái chỉ đổi khi đồng thuận tuyệt đối:
 
 $$
 \text{state}=
@@ -439,7 +439,7 @@ $$
 d_{\text{nearest}}\ge\tau_{\mathrm{db}}=0.55>\tau_m
 $$
 
-Khoảng trống giữa $\tau_m=0.45$ và $\tau_{\mathrm{db}}=0.55$ là **vùng đệm** tránh tạo trùng ID cho một người đã có trong DB nhưng bị nhận sai tạm thời.
+Khoảng trống giữa $\tau_m=0.45$ và $\tau_{\mathrm{db}}=0.55$ là vùng đệm tránh tạo trùng ID cho một người đã có trong DB nhưng bị nhận sai tạm thời.
 
 ### 11.2 Gom cụm ứng viên
 
@@ -468,13 +468,13 @@ Trước khi ghi, hệ thống kiểm tra lại lần cuối khoảng cách tâm
 
 ### 11.4 Đăng ký thủ công
 
-Hàm `RecognitionPipeline.begin_enrollment` thu thập `ENROLL_SAMPLES = 12` mẫu đạt chuẩn (cách nhau $\ge0.2$ s, timeout 60 s), tính trung bình L2-chuẩn hoá và **từ chối trùng** nếu khoảng cách tới người đã có $<\tau_m$.
+Hàm `RecognitionPipeline.begin_enrollment` thu thập `ENROLL_SAMPLES = 12` mẫu đạt chuẩn (cách nhau $\ge0.2$ s, timeout 60 s), tính trung bình L2-chuẩn hoá và từ chối trùng nếu khoảng cách tới người đã có $<\tau_m$.
 
 ---
 
 ## 12. Cơ sở dữ liệu đặc trưng
 
-Mỗi người được biểu diễn bằng **một vector trung bình** (template-per-identity) thay vì lưu toàn bộ mẫu:
+Mỗi người được biểu diễn bằng một vector trung bình (template-per-identity) thay vì lưu toàn bộ mẫu:
 
 | Cột CSV | Ý nghĩa |
 |---|---|
@@ -486,11 +486,15 @@ Mỗi người được biểu diễn bằng **một vector trung bình** (templ
 
 Đặc điểm triển khai:
 
-- **Ma trận gallery** $\mathbf{M}\in\mathbb{R}^{M\times512}$ được dựng sẵn trong bộ nhớ, nên truy vấn là một phép nhân ma trận $O(nMd)$.
-- **Ghi nguyên tử**: ghi vào file `.csv.tmp` rồi `os.replace` để không hỏng dữ liệu khi mất điện giữa chừng.
-- **Tự động lưu** định kỳ mỗi `DB_AUTOSAVE_INTERVAL = 10` s khi có thay đổi; thêm/đổi tên người lưu ngay lập tức.
-- **An toàn luồng** bằng `RLock` vì GUI, luồng suy luận và luồng đăng ký cùng truy cập.
-- Dòng CSV lỗi (sai chiều, NaN, chuẩn ≈ 0) bị bỏ qua có cảnh báo, không làm hỏng việc nạp.
+\- Ma trận gallery $\mathbf{M}\in\mathbb{R}^{M\times512}$ được dựng sẵn trong bộ nhớ, nên truy vấn là một phép nhân ma trận $O(nMd)$.
+
+\- Ghi nguyên tử: ghi vào file `.csv.tmp` rồi `os.replace` để không hỏng dữ liệu khi mất điện giữa chừng.
+
+\- Tự động lưu định kỳ mỗi `DB_AUTOSAVE_INTERVAL = 10` s khi có thay đổi; thêm/đổi tên người lưu ngay lập tức.
+
+\- An toàn luồng bằng `RLock` vì GUI, luồng suy luận và luồng đăng ký cùng truy cập.
+
+\- Dòng CSV lỗi (sai chiều, NaN, chuẩn ≈ 0) bị bỏ qua có cảnh báo, không làm hỏng việc nạp.
 
 > Lưu ý: dùng một centroid cho mỗi người đơn giản và nhanh, nhưng kém biểu diễn các phân phối đa đỉnh (ví dụ đeo kính / không đeo kính). Có thể mở rộng sang nhiều prototype hoặc $k$-NN (xem mục 15.5).
 
@@ -515,9 +519,11 @@ flowchart TB
     end
 ```
 
-- **Webcam**: hàng đợi nhỏ, khi đầy thì **bỏ khung cũ** để luôn xử lý khung mới nhất (giảm độ trễ).
-- **File video**: đọc theo đúng FPS gốc và chặn khi hàng đợi đầy (không rớt khung).
-- GUI chỉ vẽ khi `seq` đổi, không chặn luồng suy luận.
+\- Webcam: hàng đợi nhỏ, khi đầy thì bỏ khung cũ để luôn xử lý khung mới nhất (giảm độ trễ).
+
+\- File video: đọc theo đúng FPS gốc và chặn khi hàng đợi đầy (không rớt khung).
+
+\- GUI chỉ vẽ khi `seq` đổi, không chặn luồng suy luận.
 
 Độ phức tạp mỗi khung hình với $n$ mặt, gallery $M$, chiều $d=512$:
 
@@ -559,7 +565,7 @@ Trong đó thành phần chi phối là $T_{\text{det}}$ và $T_{\text{ArcFace}}
 | | `AUTO_ENROLL_CANDIDATE_TTL` | 20 s | Thời gian sống ứng viên |
 | Thủ công | `ENROLL_SAMPLES` | 12 | Số mẫu đăng ký |
 
-**Quan hệ ràng buộc giữa các ngưỡng** (cần giữ để hệ thống hoạt động đúng):
+Quan hệ ràng buộc giữa các ngưỡng (cần giữ để hệ thống hoạt động đúng):
 
 $$
 \tau_u<\tau_m<\tau_{\mathrm{db}}\qquad(0.30<0.45<0.55)
@@ -595,9 +601,11 @@ $$
 
 ### 15.3 Chỉ số theo vết và Re-ID theo thời gian
 
-- **IDF1** [[12]](#18-tài-liệu-tham-khảo): $\mathrm{IDF1}=\dfrac{2\,\mathrm{IDTP}}{2\,\mathrm{IDTP}+\mathrm{IDFP}+\mathrm{IDFN}}$ đo mức giữ đúng danh tính qua thời gian.
-- **MOTA** [[13]](#18-tài-liệu-tham-khảo): $\mathrm{MOTA}=1-\dfrac{\mathrm{FN}+\mathrm{FP}+\mathrm{IDSW}}{\mathrm{GT}}$.
-- **ID switches / phút**, **thời gian xác nhận trung bình** (số khung tới khi `KNOWN`), **tỉ lệ trùng ID** (một người bị tạo nhiều ID) và **tỉ lệ gộp ID** (nhiều người chung một ID) để đánh giá auto-enroll.
+\- IDF1 [[12]](#18-tài-liệu-tham-khảo): $\mathrm{IDF1}=\dfrac{2\,\mathrm{IDTP}}{2\,\mathrm{IDTP}+\mathrm{IDFP}+\mathrm{IDFN}}$ đo mức giữ đúng danh tính qua thời gian.
+
+\- MOTA [[13]](#18-tài-liệu-tham-khảo): $\mathrm{MOTA}=1-\dfrac{\mathrm{FN}+\mathrm{FP}+\mathrm{IDSW}}{\mathrm{GT}}$.
+
+\- ID switches / phút, thời gian xác nhận trung bình (số khung tới khi `KNOWN`), tỉ lệ trùng ID (một người bị tạo nhiều ID) và tỉ lệ gộp ID (nhiều người chung một ID) để đánh giá auto-enroll.
 
 ### 15.4 Chỉ số hiệu năng
 
@@ -605,11 +613,15 @@ FPS đầu-cuối, độ trễ mỗi khung (ms), mức dùng GPU/CPU/RAM theo s�
 
 ### 15.5 Hạn chế đã biết
 
-- Tracker IoU thuần không có chuyển động dự đoán nên dễ đổi ID khi giao nhau, có thể thay bằng ByteTrack/DeepSORT [[14]](#18-tài-liệu-tham-khảo) hoặc thêm embedding làm *appearance cue*.
-- Một centroid mỗi người không mô tả được phân phối đa đỉnh.
-- Mô hình tư thế dùng 5 điểm với nội tham số camera xấp xỉ ($f=W$) nên sai số góc chỉ phù hợp để **lọc thô**, không phải đo lường chính xác.
-- Chất lượng embedding giảm với mặt bị che (khẩu trang), ánh sáng cực đoan và độ phân giải thấp.
-- Dữ liệu sinh trắc học là **thông tin nhạy cảm**: cần tuân thủ quy định bảo vệ dữ liệu cá nhân và có sự đồng ý của người được nhận diện khi triển khai thực tế.
+\- Tracker IoU thuần không có chuyển động dự đoán nên dễ đổi ID khi giao nhau, có thể thay bằng ByteTrack/DeepSORT [[14]](#18-tài-liệu-tham-khảo) hoặc thêm embedding làm *appearance cue*.
+
+\- Một centroid mỗi người không mô tả được phân phối đa đỉnh.
+
+\- Mô hình tư thế dùng 5 điểm với nội tham số camera xấp xỉ ($f=W$) nên sai số góc chỉ phù hợp để **lọc thô**, không phải đo lường chính xác.
+
+\- Chất lượng embedding giảm với mặt bị che (khẩu trang), ánh sáng cực đoan và độ phân giải thấp.
+
+\- Dữ liệu sinh trắc học là thông tin nhạy cảm: cần tuân thủ quy định bảo vệ dữ liệu cá nhân và có sự đồng ý của người được nhận diện khi triển khai thực tế.
 
 ---
 
