@@ -68,6 +68,7 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 <div align="center">
 <p align="center">
   <img src="images/SoDo.png" width="600">
+  <br>
   <i>Sơ đồ kiến trúc hệ thống nhận diện, theo dõi và tự động cập nhật dữ liệu khuôn mặt. Quy trình gồm 10 bước chính từ tiếp nhận luồng video (Video Stream), phát hiện khuôn mặt (Detection), căn chỉnh (Alignment), lọc chất lượng (Quality Filter), trích xuất đặc trưng (Embedding), đối khớp (Matching), theo dõi (Tracking), bỏ phiếu đa khung hình (Voting), học liên tục (Continuous Learning) đến lưu trữ (Storage).</i>
 </p>
 </div>
