@@ -38,9 +38,10 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 
 <div align="center">
 <p align="center">
+  <img src="images/Anh_03.png" width="800">
   <img src="images/Anh_02.png" width="800">
   <br>
-  <i>Biểu đồ phân tích đặc trưng theo thời gian của video VD_01.mp4 (346 khung hình, 29,97 FPS, 720 x 1280). Từ trên xuống dưới: độ sáng trung bình, độ sắc nét (phương sai Laplacian), và mức độ chuyển động giữa các khung hình kề nhau.</i>
+  <i>Biểu đồ phân tích đặc trưng theo thời gian của video VD_01.mp4 (346 khung hình, 29,97 FPS, 720 x 1280). Từ trên xuống dưới: độ sáng trung bình, độ sắc nét (phương sai Laplacian), và mức độ chuyển động giữa các khung hình kề nhau. `Video nguồn: https://youtube.com/shorts/N9K7xtOaClA?si=72eiaL7N-tyO-S5- `</i>
 </p>
 </div>
 
