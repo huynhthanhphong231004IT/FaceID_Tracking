@@ -67,6 +67,17 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 
 Đánh giá tổng thể cho thấy bộ lọc chất lượng (quality-gate) vận hành hiệu quả khi loại bỏ chính xác 135 khung hình vượt ngưỡng nghiêng mặt ($\vert{}\text{Yaw}\vert{} > 20^\circ$ hoặc $\vert{}\text{Pitch}\vert{} > 20^\circ$) [Hình b, c, d], giúp đảm bảo khoảng cách Cosine của các đặc trưng khuôn mặt tập trung ở vùng an toàn ($<0.1$) và duy trì độ tin cậy khớp cao [Hình e, f]. Tuy nhiên, hệ thống đối mặt với nghẽn cổ chai lớn về mặt thời gian thực: mô-đun YOLO ($178\text{ ms}$) và ArcFace ($116\text{ ms}$) chiếm phần lớn chi phí tính toán [Hình g], khiến tổng độ trễ dao động từ $10^2$ đến $10^3\text{ ms}$—vượt xa giới hạn thời gian thực (real-time budget) [Hình h] và đẩy tỉ lệ FPS thực tế xuống mức rất thấp ($\approx 0.1 \text{--} 0.4$) [Hình a]. Điều này khẳng định bộ lọc góc mặt giúp tối ưu độ chính xác nhận diện nhưng hệ thống cần được tối ưu hóa phần cứng (như TensorRT/GPU acceleration) hoặc tinh gọn mô hình để đáp ứng yêu cầu xử lý thời gian thực.
 
+
+<div align="center">
+  <table>
+    <tr>
+      <td width="50%"><img src="images/Demo_01.png"></td>
+      <td width="50%"><img src="images/Demo_02.jpg"></td>
+    </tr>
+  </table>
+  <p><i>Quá trình kiểm tra chất lượng khung hình và xác minh đối tượng từ luồng video đầu vào.</i></p>
+</div>
+
 # Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
 
 > Tài liệu cơ sở lý thuyết của hệ thống nhận diện và tái định danh (Re-ID) khuôn mặt nhiều người theo thời gian thực. Nội dung trình bày theo cấu trúc của một bài báo khoa học: bài toán, kiến trúc, từng module với công thức, siêu tham số, phương pháp đánh giá và tài liệu tham khảo.
