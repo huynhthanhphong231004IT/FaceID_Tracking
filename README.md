@@ -30,6 +30,10 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 </p>
 <br>
 
+```python
+!git clone https://github.com/huynhthanhphong231004IT/FaceID_Tracking.git
+```
+
 # Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
 
 > Tài liệu cơ sở lý thuyết của hệ thống nhận diện và tái định danh (Re-ID) khuôn mặt nhiều người theo thời gian thực. Nội dung trình bày theo cấu trúc của một bài báo khoa học: bài toán, kiến trúc, từng module với công thức, siêu tham số, phương pháp đánh giá và tài liệu tham khảo.
@@ -61,7 +65,16 @@ Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
 
 ## 1. Tóm tắt
 
-Hệ thống thực hiện **phát hiện → căn chỉnh → lọc chất lượng → trích xuất embedding → so khớp → theo vết → xác nhận danh tính** trên luồng video (webcam hoặc file). Các đặc điểm chính:
+<div align="center">
+<p align="center">
+  <img src="images/SoDo.png" width="800">
+  <br><br>
+  <i>Sơ đồ kiến trúc hệ thống nhận diện, theo dõi và tự động cập nhật dữ liệu khuôn mặt. Quy trình gồm 10 bước chính từ tiếp nhận luồng video (Video Stream), phát hiện khuôn mặt (Detection), căn chỉnh (Alignment), lọc chất lượng (Quality Filter), trích xuất đặc trưng (Embedding), đối khớp (Matching), theo dõi (Tracking), bỏ phiếu đa khung hình (Voting), học liên tục (Continuous Learning) đến lưu trữ (Storage).</i>
+</p>
+</div>
+
+
+Hệ thống thực hiện **(1)phát hiện → (2)căn chỉnh → (3)lọc chất lượng → (4)trích xuất embedding → (5)so khớp → (6)theo vết → (7)xác nhận danh tính** trên luồng video (webcam hoặc file). Các đặc điểm chính:
 
 \- **Phát hiện**: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
 
