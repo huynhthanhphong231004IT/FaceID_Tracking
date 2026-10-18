@@ -1,0 +1,600 @@
+# Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
+
+> Tài liệu cơ sở lý thuyết của hệ thống nhận diện và tái định danh (Re-ID) khuôn mặt nhiều người theo thời gian thực. Nội dung trình bày theo cấu trúc của một bài báo khoa học: bài toán, kiến trúc, từng module với công thức, siêu tham số, phương pháp đánh giá và tài liệu tham khảo.
+
+---
+
+## Mục lục
+
+1. [Tóm tắt](#1-tóm-tắt)
+2. [Phát biểu bài toán](#2-phát-biểu-bài-toán)
+3. [Kiến trúc tổng thể](#3-kiến-trúc-tổng-thể)
+4. [Phát hiện khuôn mặt bằng YOLOv8-Face](#4-phát-hiện-khuôn-mặt-bằng-yolov8-face)
+5. [Căn chỉnh khuôn mặt (Face Alignment)](#5-căn-chỉnh-khuôn-mặt-face-alignment)
+6. [Đánh giá chất lượng: tư thế đầu và độ nét](#6-đánh-giá-chất-lượng-tư-thế-đầu-và-độ-nét)
+7. [Trích xuất đặc trưng ArcFace](#7-trích-xuất-đặc-trưng-arcface)
+8. [So khớp danh tính (Identity Matching)](#8-so-khớp-danh-tính-identity-matching)
+9. [Theo vết đa đối tượng và bỏ phiếu thời gian](#9-theo-vết-đa-đối-tượng-và-bỏ-phiếu-thời-gian)
+10. [Cập nhật mẫu đặc trưng trực tuyến](#10-cập-nhật-mẫu-đặc-trưng-trực-tuyến)
+11. [Tự động đăng ký người lạ (Auto-Enrollment)](#11-tự-động-đăng-ký-người-lạ-auto-enrollment)
+12. [Cơ sở dữ liệu đặc trưng](#12-cơ-sở-dữ-liệu-đặc-trưng)
+13. [Kiến trúc đa luồng và độ phức tạp](#13-kiến-trúc-đa-luồng-và-độ-phức-tạp)
+14. [Bảng siêu tham số](#14-bảng-siêu-tham-số)
+15. [Phương pháp đánh giá](#15-phương-pháp-đánh-giá)
+16. [Cấu trúc thư mục](#16-cấu-trúc-thư-mục)
+17. [Cài đặt và chạy](#17-cài-đặt-và-chạy)
+18. [Tài liệu tham khảo](#18-tài-liệu-tham-khảo)
+
+---
+
+## 1. Tóm tắt
+
+Hệ thống thực hiện **phát hiện → căn chỉnh → lọc chất lượng → trích xuất embedding → so khớp → theo vết → xác nhận danh tính** trên luồng video (webcam hoặc file). Các đặc điểm chính:
+
+- **Phát hiện**: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
+- **Biểu diễn**: ArcFace (`buffalo_l`, ResNet-50 backbone, embedding 512 chiều, chuẩn hoá L2).
+- **Lọc chất lượng**: ước lượng góc đầu (yaw/pitch/roll) bằng bài toán PnP từ 5 landmark và độ nét bằng phương sai Laplacian; chỉ khung hình đạt chuẩn mới được dùng để nhận diện.
+- **Ổn định danh tính**: bỏ phiếu đồng thuận trên $N$ khung hình liên tiếp trên từng track.
+- **Học liên tục**: cập nhật vector trung bình theo thời gian và **tự đăng ký** người lạ khi bằng chứng đủ nhất quán.
+- **Lưu trữ**: mỗi người được biểu diễn bằng **một vector trung bình** (centroid) lưu trong CSV.
+
+---
+
+## 2. Phát biểu bài toán
+
+Cho chuỗi khung hình $\{I_t\}_{t=1}^{T}$. Tại mỗi khung hình, hệ thống cần xác định tập các khuôn mặt $\mathcal{F}_t=\{f_{t,i}\}$, và gán cho mỗi khuôn mặt một danh tính $y_{t,i}\in\mathcal{G}\cup\{\text{unknown}\}$ với $\mathcal{G}=\{1,\dots,M\}$ là tập danh tính đã đăng ký (gallery). Đây là bài toán **open-set identification**: mặt có thể không thuộc gallery và phải bị từ chối.
+
+Gọi $\phi:\mathbb{R}^{112\times112\times3}\to\mathbb{S}^{511}$ là bộ trích xuất đặc trưng ánh xạ ảnh mặt đã căn chỉnh lên siêu cầu đơn vị. Danh tính được quyết định theo:
+
+$$
+\hat y(f)=
+\begin{cases}
+\arg\min_{g\in\mathcal{G}} d\big(\phi(f),\mu_g\big) & \text{nếu } \min_g d(\phi(f),\mu_g)<\tau_m\\[4pt]
+\text{unknown} & \text{ngược lại}
+\end{cases}
+$$
+
+với $\mu_g$ là vector trung bình của danh tính $g$, $d(\mathbf{a},\mathbf{b})=1-\mathbf{a}^\top\mathbf{b}$ là khoảng cách cosine, và $\tau_m$ là ngưỡng so khớp (`MATCH_DISTANCE_THRESHOLD = 0.45`).
+
+---
+
+## 3. Kiến trúc tổng thể
+
+```mermaid
+flowchart LR
+    A[Video source<br/>Webcam / File] --> B[Capture thread<br/>Frame queue]
+    B --> C[YOLOv8-Face<br/>bbox + 5 landmarks]
+    C -->|thiếu landmark| C2[InsightFace det<br/>landmark fallback]
+    C --> D[IoU Tracker<br/>gán track_id]
+    C2 --> D
+    D --> E[Face Alignment<br/>similarity transform 112x112]
+    E --> F[Quality Gate<br/>Pose PnP + Laplacian + size]
+    F -->|đạt chuẩn| G[ArcFace<br/>embedding 512-D, L2]
+    F -->|không đạt| X[FILTERED<br/>không dùng để nhận diện]
+    G --> H[Matching<br/>cosine distance vs. gallery]
+    H --> I[Temporal Voting<br/>N consecutive frames]
+    I -->|KNOWN| J[Online update<br/>running mean]
+    I -->|UNKNOWN| K[Candidate Pool<br/>Auto-enroll]
+    J --> L[(CSV Feature DB)]
+    K --> L
+    I --> M[GUI Overlay<br/>CustomTkinter]
+```
+
+Luồng dữ liệu theo từng khung hình (tương ứng `RecognitionPipeline._process_frame`):
+
+```mermaid
+sequenceDiagram
+    participant Cap as VideoSource
+    participant Det as YoloFaceDetector
+    participant Trk as FaceTracker
+    participant Q as PoseEstimator
+    participant Emb as ArcFaceExtractor
+    participant DB as FeatureManager
+    Cap->>Det: frame I_t
+    Det->>Trk: bboxes (kèm kps)
+    Trk-->>Det: track_id cho từng bbox
+    loop mỗi mặt
+        Det->>Q: align(kps) -> aligned face
+        Q-->>Det: QualityReport (is_good)
+    end
+    Det->>Emb: batch các mặt is_good
+    Emb->>DB: embeddings
+    DB-->>Trk: matches (person_id, similarity)
+    Trk->>Trk: add_vote(), cập nhật state
+```
+
+---
+
+## 4. Phát hiện khuôn mặt bằng YOLOv8-Face
+
+### 4.1 Mô hình
+
+YOLOv8 [[1]](#18-tài-liệu-tham-khảo) là bộ phát hiện một giai đoạn, **anchor-free** với đầu dự đoán tách rời (*decoupled head*) cho phân loại và hồi quy hộp. Biến thể *face* bổ sung nhánh **keypoints** dự đoán 5 điểm landmark (hai mắt, mũi, hai khoé miệng), theo ý tưởng của YOLOv5-Face [[2]](#18-tài-liệu-tham-khảo) và pose head của YOLOv8-Pose.
+
+Hộp bao được hồi quy dưới dạng phân phối rời rạc trên $r+1$ bin (Distribution Focal Loss) [[3]](#18-tài-liệu-tham-khảo):
+
+$$
+\hat{l}=\sum_{i=0}^{r} i\cdot \mathrm{softmax}(\mathbf{z})_i,\qquad
+\mathcal{L}_{\mathrm{DFL}}=-\big((y_{i+1}-y)\log S_i+(y-y_i)\log S_{i+1}\big)
+$$
+
+### 4.2 Hàm mất mát khi huấn luyện
+
+$$
+\mathcal{L}=\lambda_{\mathrm{box}}\mathcal{L}_{\mathrm{CIoU}}+\lambda_{\mathrm{dfl}}\mathcal{L}_{\mathrm{DFL}}+\lambda_{\mathrm{cls}}\mathcal{L}_{\mathrm{BCE}}+\lambda_{\mathrm{kpt}}\mathcal{L}_{\mathrm{kpt}}
+$$
+
+Trong đó CIoU [[4]](#18-tài-liệu-tham-khảo):
+
+$$
+\mathcal{L}_{\mathrm{CIoU}}=1-\mathrm{IoU}+\frac{\rho^2(\mathbf{b},\mathbf{b}^{gt})}{c^2}+\alpha v,\quad
+v=\frac{4}{\pi^2}\Big(\arctan\frac{w^{gt}}{h^{gt}}-\arctan\frac{w}{h}\Big)^2,\quad
+\alpha=\frac{v}{(1-\mathrm{IoU})+v}
+$$
+
+và mất mát keypoint dựa trên Object Keypoint Similarity (OKS):
+
+$$
+\mathcal{L}_{\mathrm{kpt}}=1-\frac{\sum_k \exp\!\big(-d_k^2/(2s^2\kappa_k^2)\big)\,\delta(v_k>0)}{\sum_k\delta(v_k>0)}
+$$
+
+với $d_k$ là sai số Euclid của landmark thứ $k$, $s$ là diện tích đối tượng, $\kappa_k$ là hằng số theo từng điểm.
+
+### 4.3 Hậu xử lý: NMS
+
+Các hộp trùng lặp bị loại bằng Non-Maximum Suppression với ngưỡng IoU `YOLO_IOU = 0.5`; ngưỡng điểm tin cậy `YOLO_CONF = 0.5`, tối đa `YOLO_MAX_DET = 20` khuôn mặt, kích thước đầu vào `YOLO_IMGSZ = 640`.
+
+$$
+\mathrm{IoU}(A,B)=\frac{|A\cap B|}{|A\cup B|}
+$$
+
+### 4.4 Cơ chế dự phòng landmark
+
+Nếu đầu ra keypoint của YOLO bằng 0 (không có landmark), hệ thống cắt vùng mặt có lề $m=0.40$ và chạy bộ phát hiện SCRFD của InsightFace [[15]](#18-tài-liệu-tham-khảo) (`LANDMARK_FALLBACK_SIZE = (192,192)`, `LANDMARK_DET_THRESH = 0.30`) để lấy 5 điểm, sau đó tịnh tiến về hệ toạ độ khung hình gốc:
+
+$$
+\mathbf{k}_j^{\text{frame}}=\mathbf{k}_j^{\text{crop}}+(c_{x1},c_{y1})^\top,\qquad j=1,\dots,5
+$$
+
+---
+
+## 5. Căn chỉnh khuôn mặt (Face Alignment)
+
+ArcFace được huấn luyện trên ảnh mặt chuẩn hoá $112\times112$. Với 5 landmark phát hiện được $\{\mathbf{p}_j\}$ và 5 điểm mẫu chuẩn $\{\mathbf{q}_j\}$, ta tìm phép biến đổi đồng dạng (*similarity transform*: tỉ lệ, quay, tịnh tiến) tối ưu theo bình phương tối thiểu:
+
+$$
+\min_{s,\mathbf{R},\mathbf{t}}\ \sum_{j=1}^{5}\big\|\,s\mathbf{R}\mathbf{p}_j+\mathbf{t}-\mathbf{q}_j\big\|_2^2,\qquad \mathbf{R}\in SO(2)
+$$
+
+Nghiệm đóng được cho bởi phương pháp Umeyama [[5]](#18-tài-liệu-tham-khảo) thông qua SVD của ma trận hiệp phương sai chéo:
+
+$$
+\boldsymbol{\Sigma}=\frac{1}{5}\sum_j(\mathbf{q}_j-\bar{\mathbf{q}})(\mathbf{p}_j-\bar{\mathbf{p}})^\top=\mathbf{U}\mathbf{D}\mathbf{V}^\top,\quad
+\mathbf{R}=\mathbf{U}\mathbf{S}\mathbf{V}^\top,\quad
+s=\frac{\operatorname{tr}(\mathbf{D}\mathbf{S})}{\sigma_p^2},\quad
+\mathbf{t}=\bar{\mathbf{q}}-s\mathbf{R}\bar{\mathbf{p}}
+$$
+
+Ảnh được warp bằng phép biến đổi affine tương ứng thành ảnh $112\times112$ (`insightface.utils.face_align.norm_crop`, `ALIGN_SIZE = 112`).
+
+---
+
+## 6. Đánh giá chất lượng: tư thế đầu và độ nét
+
+Embedding từ mặt nghiêng, mờ hoặc quá nhỏ kém tin cậy và làm nhiễu cơ sở dữ liệu. Hệ thống áp dụng **cổng chất lượng** (*quality gate*) trước khi trích xuất đặc trưng. Một khung mặt là `is_good` khi **đồng thời** thoả cả ba điều kiện:
+
+$$
+\min(w_b,h_b)\ge s_{\min},\qquad
+|\theta_{\mathrm{yaw}}|\le 20^\circ,\ |\theta_{\mathrm{pitch}}|\le 20^\circ,\ |\theta_{\mathrm{roll}}|\le 20^\circ,\qquad
+\mathrm{Var}(\nabla^2 G)\ge \tau_b
+$$
+
+### 6.1 Ước lượng tư thế đầu bằng PnP
+
+Dùng mô hình mặt 3D thô gồm 5 điểm $\mathbf{X}_j$ (mắt trái, mắt phải, mũi, khoé miệng trái, khoé miệng phải) và 5 landmark 2D $\mathbf{x}_j$, ta giải bài toán **Perspective-n-Point** bằng cực tiểu hoá sai số tái chiếu:
+
+$$
+(\mathbf{R},\mathbf{t})^\star=\arg\min_{\mathbf{R},\mathbf{t}}\sum_{j=1}^{5}\Big\|\mathbf{x}_j-\pi\big(\mathbf{K}(\mathbf{R}\mathbf{X}_j+\mathbf{t})\big)\Big\|_2^2
+$$
+
+với ma trận nội tham số xấp xỉ $\mathbf{K}=\begin{bmatrix}f&0&c_x\\0&f&c_y\\0&0&1\end{bmatrix}$, $f=W$ (bề rộng ảnh), $(c_x,c_y)$ là trọng tâm các landmark, không có méo ảnh. Khởi tạo bằng EPnP [[6]](#18-tài-liệu-tham-khảo), tinh chỉnh bằng Levenberg–Marquardt (`SOLVEPNP_ITERATIVE`). Nghiệm hợp lệ yêu cầu $t_z>0$ (mặt nằm trước camera).
+
+Từ vector quay Rodrigues $\mathbf{r}\mapsto\mathbf{R}$, các góc Euler được tính (chỉ số bắt đầu từ 1):
+
+$$
+\theta_{\mathrm{yaw}}=\arcsin(-R_{31}),\qquad
+\theta_{\mathrm{pitch}}=\operatorname{atan2}(R_{32},R_{33}),\qquad
+\theta_{\mathrm{roll}}=\operatorname{atan2}(R_{21},R_{11})
+$$
+
+### 6.2 Độ nét bằng phương sai Laplacian
+
+Độ nét của ảnh mặt đã căn chỉnh (chuyển xám $G$) được đo bằng phương sai của toán tử Laplace [[7]](#18-tài-liệu-tham-khảo):
+
+$$
+\nabla^2 G=\frac{\partial^2G}{\partial x^2}+\frac{\partial^2G}{\partial y^2},\qquad
+S=\mathrm{Var}\big(\nabla^2 G\big)=\frac{1}{N}\sum_{x,y}\big(\nabla^2G(x,y)-\overline{\nabla^2G}\big)^2
+$$
+
+Ảnh mờ có ít cạnh sắc nên $S$ nhỏ. Ảnh bị loại nếu $S<\tau_b$ (`BLUR_THRESHOLD = 35`).
+
+---
+
+## 7. Trích xuất đặc trưng ArcFace
+
+### 7.1 Mô hình
+
+Bộ nhận dạng là ArcFace [[8]](#18-tài-liệu-tham-khảo) trong gói `buffalo_l` của InsightFace [[16]](#18-tài-liệu-tham-khảo) (backbone dạng ResNet [[9]](#18-tài-liệu-tham-khảo)), cho đầu ra $\mathbf{e}\in\mathbb{R}^{512}$.
+
+### 7.2 Hàm mất mát Additive Angular Margin
+
+Với embedding $\mathbf{x}_i$ thuộc lớp $y_i$ và trọng số lớp $\mathbf{W}_j$, sau khi chuẩn hoá $\|\mathbf{x}_i\|=\|\mathbf{W}_j\|=1$ thì logit là $\cos\theta_j$. ArcFace thêm lề góc $m$ vào lớp đúng và nhân tỉ lệ $s$:
+
+$$
+\mathcal{L}_{\mathrm{ArcFace}}=-\frac{1}{N}\sum_{i=1}^{N}\log
+\frac{e^{\,s\cos(\theta_{y_i}+m)}}{e^{\,s\cos(\theta_{y_i}+m)}+\sum_{j\ne y_i}e^{\,s\cos\theta_j}}
+$$
+
+Lề góc $m$ ép các lớp tách xa nhau hơn trên siêu cầu, tăng tính phân biệt: **nội lớp gọn, liên lớp xa**. Đây là lý do khoảng cách cosine giữa hai embedding là thước đo hợp lý ở giai đoạn suy luận.
+
+### 7.3 Chuẩn hoá L2 khi suy luận
+
+$$
+\hat{\mathbf{e}}=\frac{\mathbf{e}}{\max(\|\mathbf{e}\|_2,\ \epsilon)},\qquad \epsilon=10^{-12}
+$$
+
+Nhờ đó tích vô hướng bằng độ tương đồng cosine và mọi phép so khớp quy về nhân ma trận. Các mặt đạt chuẩn trong một khung hình được suy luận theo **batch** để tận dụng song song.
+
+---
+
+## 8. So khớp danh tính (Identity Matching)
+
+### 8.1 Khoảng cách và ma trận khoảng cách
+
+Với $n$ embedding truy vấn $\mathbf{E}\in\mathbb{R}^{n\times512}$ và gallery $\mathbf{M}\in\mathbb{R}^{M\times512}$ (mỗi hàng là vector trung bình đã chuẩn hoá):
+
+$$
+\mathbf{D}=\mathbf{1}-\mathbf{E}\mathbf{M}^\top,\qquad D_{rc}=1-\cos\theta_{rc}\in[0,2]
+$$
+
+### 8.2 Gán một-một tham lam (Greedy One-to-One Assignment)
+
+Để tránh hai mặt trong cùng khung hình cùng nhận một danh tính, tập các cặp hợp lệ $\{(r,c):D_{rc}<\tau_m\}$ được sắp xếp tăng dần theo khoảng cách và gán lần lượt, bỏ qua cặp có hàng hoặc cột đã dùng:
+
+$$
+\mathcal{P}=\{(D_{rc},r,c)\mid D_{rc}<\tau_m\},\quad \text{sắp xếp tăng dần; gán } (r,c)\text{ nếu } r\notin U_r,\ c\notin U_c
+$$
+
+Đây là xấp xỉ tham lam của bài toán gán tối ưu (thuật toán Hungarian [[10]](#18-tài-liệu-tham-khảo)), đủ chính xác khi số khuôn mặt nhỏ và các khoảng cách phân tách rõ, với độ phức tạp $O(nM\log(nM))$.
+
+### 8.3 Độ tin cậy
+
+Độ tin cậy hiển thị cho một khớp là độ tương đồng cosine $\mathrm{conf}=1-d$. Với $\tau_m=0.45$, ngưỡng tương đương $\cos\theta>0.55$. Giá trị $d_{\text{nearest}}$ (khoảng cách tới người gần nhất, kể cả khi vượt ngưỡng) được giữ lại để phục vụ cơ chế tự đăng ký (mục 11).
+
+---
+
+## 9. Theo vết đa đối tượng và bỏ phiếu thời gian
+
+### 9.1 Theo vết dựa trên IoU
+
+Mỗi hộp phát hiện được gán cho một track dựa trên ma trận IoU giữa hộp hiện tại và hộp cuối của track, theo kiểu tham lam giống SORT [[11]](#18-tài-liệu-tham-khảo) nhưng không dùng bộ lọc Kalman:
+
+$$
+\mathrm{IoU}_{dt}\ge\tau_{\mathrm{iou}}=0.30\ \Rightarrow\ \text{ứng viên ghép};\qquad
+\text{track bị xoá nếu } \text{missed}>20 \text{ khung hình}
+$$
+
+Detection không ghép được sẽ tạo track mới (`track_id` tăng dần). Cách đơn giản này phù hợp với camera tĩnh và mặt di chuyển chậm; nhược điểm là dễ đổi ID khi các mặt giao nhau nhanh (xem mục 15.5).
+
+### 9.2 Máy trạng thái của track
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: track mới
+    PENDING --> KNOWN: N phiếu liên tiếp cùng person_id
+    PENDING --> UNKNOWN: N phiếu liên tiếp đều là None
+    UNKNOWN --> KNOWN: khớp DB đồng thuận / auto-enroll
+    KNOWN --> UNKNOWN: N phiếu None liên tiếp
+    KNOWN --> KNOWN: đổi sang person_id khác sau N phiếu
+```
+
+### 9.3 Quy tắc bỏ phiếu đồng thuận
+
+Mỗi track giữ hàng đợi $V=(v_{t-N+1},\dots,v_t)$ gồm $N=5$ phiếu gần nhất, $v_t\in\mathcal{G}\cup\{\varnothing\}$ (chỉ thêm phiếu khi khung mặt `is_good`). Trạng thái chỉ đổi khi **đồng thuận tuyệt đối**:
+
+$$
+\text{state}=
+\begin{cases}
+\text{KNOWN}(g) & \text{nếu } |V|=N,\ v_i=g\ \forall i,\ g\in\mathcal{G}\\
+\text{UNKNOWN} & \text{nếu } |V|=N,\ v_i=\varnothing\ \forall i\\
+\text{giữ nguyên} & \text{ngược lại}
+\end{cases}
+$$
+
+Độ tin cậy của track được làm mượt bằng trung bình trượt mũ (EMA):
+
+$$
+\bar s_t=0.7\,\bar s_{t-1}+0.3\,s_t
+$$
+
+**Lợi ích**: nếu xác suất một khung bị nhận sai là $p$ thì xác suất cả $N$ khung cùng sai theo *cùng một* danh tính chỉ cỡ $\le p^N$ (xét xấp xỉ độc lập), giảm mạnh nhận nhầm và hiện tượng nhấp nháy nhãn, đổi lại độ trễ xác nhận khoảng $N$ khung hình hợp lệ.
+
+---
+
+## 10. Cập nhật mẫu đặc trưng trực tuyến
+
+Khi track đã `KNOWN` và khung hiện tại khớp **rất chắc** ($d\le\tau_u=0.30$), embedding mới được hợp nhất vào danh tính để thích nghi với thay đổi ngoại hình (ánh sáng, biểu cảm, tuổi tác). Mỗi người lưu tổng vector $\mathbf{s}_g$ và số mẫu $n_g$; vector đại diện là:
+
+$$
+\mu_g=\frac{\mathbf{s}_g}{\|\mathbf{s}_g\|_2}
+$$
+
+Cập nhật có **cửa sổ trượt xấp xỉ** với $K=$ `MAX_FEATURES_PER_PERSON = 100`:
+
+$$
+\mathbf{s}_g\leftarrow
+\begin{cases}
+\mathbf{s}_g+\hat{\mathbf{e}} & n_g<K\\[2pt]
+\big(1-\tfrac{1}{K}\big)\mathbf{s}_g+\hat{\mathbf{e}} & n_g\ge K
+\end{cases}
+\qquad n_g\leftarrow n_g+1
+$$
+
+Khi $n_g\ge K$ đây là **trung bình trượt mũ** với hệ số quên $1/K$, nên bộ nhớ $O(1)$ cho mỗi người, đồng thời giảm ảnh hưởng của mẫu cũ. Hai cơ chế bảo vệ chống "trôi danh tính" (*identity drift*):
+
+1. Chỉ cập nhật khi $d\le\tau_u=0.30<\tau_m=0.45$ (ngưỡng cập nhật chặt hơn ngưỡng nhận diện).
+2. Giới hạn tần suất tối thiểu `FEATURE_UPDATE_MIN_INTERVAL = 1.0` giây giữa hai lần cập nhật.
+
+---
+
+## 11. Tự động đăng ký người lạ (Auto-Enrollment)
+
+Khi một track ở trạng thái `UNKNOWN`, hệ thống gom các embedding của người đó vào một **ứng viên** (*candidate*) và chỉ tạo ID mới khi bằng chứng đủ mạnh và nhất quán.
+
+### 11.1 Điều kiện đưa mẫu vào hồ ứng viên
+
+Mẫu từ khung `is_good`, track `UNKNOWN`, không có khớp trong DB, kích thước mặt $\ge 80$ px (`AUTO_ENROLL_MIN_FACE_SIZE`) và **cách xa mọi người trong DB**:
+
+$$
+d_{\text{nearest}}\ge\tau_{\mathrm{db}}=0.55>\tau_m
+$$
+
+Khoảng trống giữa $\tau_m=0.45$ và $\tau_{\mathrm{db}}=0.55$ là **vùng đệm** tránh tạo trùng ID cho một người đã có trong DB nhưng bị nhận sai tạm thời.
+
+### 11.2 Gom cụm ứng viên
+
+Một embedding $\hat{\mathbf{e}}$ được gán cho ứng viên gần nhất có tâm $\mathbf{c}_k=\mathbf{s}_k/\|\mathbf{s}_k\|$ nếu $1-\hat{\mathbf{e}}^\top\mathbf{c}_k<\tau_m$; nếu không, tạo ứng viên mới (tối đa 8, loại ứng viên cũ nhất). Một mẫu chỉ được cộng vào ứng viên khi cách mẫu trước $\ge 0.15$ giây để giảm tương quan giữa các mẫu liên tiếp.
+
+### 11.3 Tiêu chí chấp nhận (coherence)
+
+Với tập mẫu $\{\mathbf{x}_i\}_{i=1}^n$ và tâm $\mathbf{c}$, độ nhất quán là:
+
+$$
+\bar{\rho}=\frac{1}{n}\sum_i\mathbf{x}_i^\top\mathbf{c},\qquad
+\rho_{\min}=\min_i\ \mathbf{x}_i^\top\mathbf{c}
+$$
+
+$$
+\text{READY}\iff n\ge 20,\ \ \bar\rho\ge0.60,\ \ \rho_{\min}\ge0.40,\ \ t_{\text{last}}-t_{\text{first}}\ge 3.0\text{ s}
+$$
+
+$$
+\text{REJECT}\iff \neg\text{coherent}\ \wedge\ n\ge 40
+$$
+
+Điều kiện thời gian $\ge3$ s đảm bảo mẫu trải trên một khoảng quan sát đủ dài (đa dạng tư thế/ánh sáng) và loại bỏ trường hợp ảnh lướt qua. Ứng viên `REJECT` (cụm không đồng nhất, có thể lẫn nhiều người) bị huỷ mà không tạo ID. Ứng viên hết hạn sau `TTL = 20` s không được quan sát.
+
+Trước khi ghi, hệ thống kiểm tra lại lần cuối khoảng cách tâm tới DB ($<\tau_{\mathrm{db}}$ thì bỏ). Khi chấp nhận, danh tính mới được tạo với tên mặc định `Person_XXXXX` và vector khởi tạo là tổng các mẫu.
+
+### 11.4 Đăng ký thủ công
+
+Hàm `RecognitionPipeline.begin_enrollment` thu thập `ENROLL_SAMPLES = 12` mẫu đạt chuẩn (cách nhau $\ge0.2$ s, timeout 60 s), tính trung bình L2-chuẩn hoá và **từ chối trùng** nếu khoảng cách tới người đã có $<\tau_m$.
+
+---
+
+## 12. Cơ sở dữ liệu đặc trưng
+
+Mỗi người được biểu diễn bằng **một vector trung bình** (template-per-identity) thay vì lưu toàn bộ mẫu:
+
+| Cột CSV | Ý nghĩa |
+|---|---|
+| `ID` | Mã người (số nguyên tăng dần) |
+| `Name` | Tên hiển thị / tên tự động `Person_XXXXX` |
+| `Feature_Vector_JSON` | Vector trung bình 512 chiều (làm tròn 6 chữ số) |
+| `Updated_At` | Thời điểm cập nhật cuối |
+| `Num_Features` | Số mẫu đã đóng góp |
+
+Đặc điểm triển khai:
+
+- **Ma trận gallery** $\mathbf{M}\in\mathbb{R}^{M\times512}$ được dựng sẵn trong bộ nhớ, nên truy vấn là một phép nhân ma trận $O(nMd)$.
+- **Ghi nguyên tử**: ghi vào file `.csv.tmp` rồi `os.replace` để không hỏng dữ liệu khi mất điện giữa chừng.
+- **Tự động lưu** định kỳ mỗi `DB_AUTOSAVE_INTERVAL = 10` s khi có thay đổi; thêm/đổi tên người lưu ngay lập tức.
+- **An toàn luồng** bằng `RLock` vì GUI, luồng suy luận và luồng đăng ký cùng truy cập.
+- Dòng CSV lỗi (sai chiều, NaN, chuẩn ≈ 0) bị bỏ qua có cảnh báo, không làm hỏng việc nạp.
+
+> Lưu ý: dùng một centroid cho mỗi người đơn giản và nhanh, nhưng kém biểu diễn các phân phối đa đỉnh (ví dụ đeo kính / không đeo kính). Có thể mở rộng sang nhiều prototype hoặc $k$-NN (xem mục 15.5).
+
+---
+
+## 13. Kiến trúc đa luồng và độ phức tạp
+
+```mermaid
+flowchart TB
+    subgraph T1[Luồng Capture]
+      C1[cap.read] --> Q1[(Frame queue, size 2)]
+    end
+    subgraph T2[Luồng Inference]
+      Q1 --> P1[detect → track → align → embed → match → vote]
+      P1 --> R1[(FrameResult mới nhất, có khoá)]
+    end
+    subgraph T3[Luồng GUI]
+      R1 --> U1[render overlay + cập nhật panel mỗi 15 ms]
+    end
+    subgraph T4[Luồng nạp model]
+      M1[load YOLO + ArcFace nền]
+    end
+```
+
+- **Webcam**: hàng đợi nhỏ, khi đầy thì **bỏ khung cũ** để luôn xử lý khung mới nhất (giảm độ trễ).
+- **File video**: đọc theo đúng FPS gốc và chặn khi hàng đợi đầy (không rớt khung).
+- GUI chỉ vẽ khi `seq` đổi, không chặn luồng suy luận.
+
+Độ phức tạp mỗi khung hình với $n$ mặt, gallery $M$, chiều $d=512$:
+
+$$
+T_{\text{frame}}=T_{\text{det}}(W,H)+n\,T_{\text{align}}+T_{\text{ArcFace}}(n)+O(nMd)+O(n\cdot|\text{tracks}|)
+$$
+
+Trong đó thành phần chi phối là $T_{\text{det}}$ và $T_{\text{ArcFace}}$ (mạng nơ-ron); bước so khớp và theo vết là không đáng kể với $M\lesssim10^4$. Với $M$ rất lớn nên chuyển sang chỉ mục xấp xỉ (FAISS/HNSW).
+
+Độ trễ xác nhận danh tính (không tính suy luận) xấp xỉ $N/\text{FPS}_{\text{good}}$ giây, với $\text{FPS}_{\text{good}}$ là tốc độ khung đạt chuẩn.
+
+---
+
+## 14. Bảng siêu tham số
+
+| Nhóm | Tham số | Giá trị | Vai trò |
+|---|---|---|---|
+| Phát hiện | `YOLO_CONF` | 0.5 | Ngưỡng điểm tin cậy |
+| | `YOLO_IOU` | 0.5 | Ngưỡng NMS |
+| | `YOLO_IMGSZ` | 640 | Kích thước vào mạng |
+| | `YOLO_MAX_DET` | 20 | Số mặt tối đa/khung |
+| Căn chỉnh | `ALIGN_SIZE` | 112 | Kích thước ảnh mặt chuẩn |
+| Chất lượng | `MIN_FACE_SIZE` | 48 px | Cạnh nhỏ nhất của bbox |
+| | `POSE_MAX_YAW/PITCH/ROLL` | 20° | Góc đầu tối đa |
+| | `BLUR_THRESHOLD` | 35 | Ngưỡng phương sai Laplacian |
+| So khớp | `MATCH_DISTANCE_THRESHOLD` $\tau_m$ | 0.45 | Ngưỡng nhận diện (cosine dist.) |
+| | `UPDATE_DISTANCE_THRESHOLD` $\tau_u$ | 0.30 | Ngưỡng cập nhật template |
+| | `N_CONFIRM_FRAMES` $N$ | 5 | Số phiếu đồng thuận |
+| | `MAX_FEATURES_PER_PERSON` $K$ | 100 | Cửa sổ trượt cho centroid |
+| | `FEATURE_UPDATE_MIN_INTERVAL` | 1.0 s | Giãn cách cập nhật |
+| Theo vết | `TRACK_IOU_THRESHOLD` | 0.30 | Ngưỡng ghép IoU |
+| | `TRACK_MAX_MISSED` | 20 | Số khung mất dấu tối đa |
+| Auto-enroll | `AUTO_ENROLL_MIN_SAMPLES` | 20 | Số mẫu tối thiểu |
+| | `AUTO_ENROLL_MIN_SECONDS` | 3.0 s | Thời gian quan sát tối thiểu |
+| | `AUTO_ENROLL_SAMPLE_INTERVAL` | 0.15 s | Giãn cách lấy mẫu |
+| | `AUTO_ENROLL_COHERENCE_MEAN/MIN` | 0.60 / 0.40 | Ngưỡng nhất quán |
+| | `AUTO_ENROLL_MIN_DB_DISTANCE` $\tau_{db}$ | 0.55 | Khoảng cách tối thiểu tới DB |
+| | `AUTO_ENROLL_MIN_FACE_SIZE` | 80 px | Cỡ mặt tối thiểu |
+| | `AUTO_ENROLL_CANDIDATE_TTL` | 20 s | Thời gian sống ứng viên |
+| Thủ công | `ENROLL_SAMPLES` | 12 | Số mẫu đăng ký |
+
+**Quan hệ ràng buộc giữa các ngưỡng** (cần giữ để hệ thống hoạt động đúng):
+
+$$
+\tau_u<\tau_m<\tau_{\mathrm{db}}\qquad(0.30<0.45<0.55)
+$$
+
+Ý nghĩa: chỉ cập nhật khi rất chắc ($\tau_u$), nhận diện khi đủ giống ($\tau_m$), và chỉ tạo người mới khi chắc chắn *không giống ai* trong DB ($\tau_{\mathrm{db}}$).
+
+---
+
+## 15. Phương pháp đánh giá
+
+### 15.1 Chỉ số xác minh (verification)
+
+Với các cặp (cùng người / khác người), đặt ngưỡng $\tau$ trên khoảng cách cosine:
+
+$$
+\mathrm{TAR}(\tau)=\frac{|\{\text{cặp cùng người}: d<\tau\}|}{|\text{cặp cùng người}|},\qquad
+\mathrm{FAR}(\tau)=\frac{|\{\text{cặp khác người}: d<\tau\}|}{|\text{cặp khác người}|}
+$$
+
+$$
+\mathrm{EER}:\ \mathrm{FAR}(\tau^\ast)=\mathrm{FRR}(\tau^\ast)=1-\mathrm{TAR}(\tau^\ast)
+$$
+
+Báo cáo đường cong ROC, `TAR@FAR=1e-3`, `TAR@FAR=1e-4` và EER; $\tau_m$ nên chọn từ điểm vận hành mong muốn trên ROC của dữ liệu triển khai thực tế.
+
+### 15.2 Chỉ số định danh open-set
+
+$$
+\mathrm{DIR}(\tau,k)=\frac{|\{\text{mặt trong gallery được xếp hạng đúng ở top-}k\ \wedge\ d<\tau\}|}{|\text{mặt có trong gallery}|},\qquad
+\mathrm{FPIR}(\tau)=\frac{|\{\text{mặt ngoài gallery bị nhận nhầm}: d<\tau\}|}{|\text{mặt ngoài gallery}|}
+$$
+
+### 15.3 Chỉ số theo vết và Re-ID theo thời gian
+
+- **IDF1** [[12]](#18-tài-liệu-tham-khảo): $\mathrm{IDF1}=\dfrac{2\,\mathrm{IDTP}}{2\,\mathrm{IDTP}+\mathrm{IDFP}+\mathrm{IDFN}}$ đo mức giữ đúng danh tính qua thời gian.
+- **MOTA** [[13]](#18-tài-liệu-tham-khảo): $\mathrm{MOTA}=1-\dfrac{\mathrm{FN}+\mathrm{FP}+\mathrm{IDSW}}{\mathrm{GT}}$.
+- **ID switches / phút**, **thời gian xác nhận trung bình** (số khung tới khi `KNOWN`), **tỉ lệ trùng ID** (một người bị tạo nhiều ID) và **tỉ lệ gộp ID** (nhiều người chung một ID) để đánh giá auto-enroll.
+
+### 15.4 Chỉ số hiệu năng
+
+FPS đầu-cuối, độ trễ mỗi khung (ms), mức dùng GPU/CPU/RAM theo số mặt $n$ trong khung.
+
+### 15.5 Hạn chế đã biết
+
+- Tracker IoU thuần không có chuyển động dự đoán nên dễ đổi ID khi giao nhau, có thể thay bằng ByteTrack/DeepSORT [[14]](#18-tài-liệu-tham-khảo) hoặc thêm embedding làm *appearance cue*.
+- Một centroid mỗi người không mô tả được phân phối đa đỉnh.
+- Mô hình tư thế dùng 5 điểm với nội tham số camera xấp xỉ ($f=W$) nên sai số góc chỉ phù hợp để **lọc thô**, không phải đo lường chính xác.
+- Chất lượng embedding giảm với mặt bị che (khẩu trang), ánh sáng cực đoan và độ phân giải thấp.
+- Dữ liệu sinh trắc học là **thông tin nhạy cảm**: cần tuân thủ quy định bảo vệ dữ liệu cá nhân và có sự đồng ý của người được nhận diện khi triển khai thực tế.
+
+---
+
+## 16. Cấu trúc thư mục
+
+```
+face_tracker_app/
+├── main.py                     # Điểm khởi chạy, kiểm tra phụ thuộc, tham số --cpu/--debug
+├── config.py                   # Toàn bộ siêu tham số và đường dẫn
+├── pipeline.py                 # RecognitionPipeline: điều phối luồng suy luận
+├── requirements.txt
+├── database/
+│   └── face_features.csv       # CSDL vector trung bình
+├── models/
+│   ├── yolo_detector.py        # YoloFaceDetector (+ landmark fallback)
+│   ├── arcface_extractor.py    # ArcFaceExtractor (align + embed)
+│   └── weights/                # yolov8n-face.pt, insightface/buffalo_l
+├── utils/
+│   ├── feature_manager.py      # FeatureManager: CSV, centroid, cập nhật
+│   ├── candidate_pool.py       # CandidatePool: auto-enroll
+│   ├── pose_estimator.py       # PoseEstimator: PnP + Laplacian
+│   ├── tracker.py              # FaceTracker: IoU + bỏ phiếu
+│   └── video_source.py         # VideoSource: webcam / file
+└── gui/
+    ├── app_ui.py               # Giao diện CustomTkinter
+    └── overlay.py              # Vẽ bbox, nhãn, góc đầu lên khung hình
+```
+
+---
+
+## 17. Cài đặt và chạy
+
+```bash
+# 1. Tạo môi trường (khuyến nghị Python 3.9 – 3.11)
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# 2. Cài thư viện
+pip install -r requirements.txt
+
+# 3. Chạy
+python main.py                     # tự dùng GPU nếu có
+python main.py --cpu               # ép chạy CPU
+python main.py --debug             # log chi tiết
+```
+
+Lần chạy đầu cần Internet để tải trọng số `yolov8n-face.pt` và gói `buffalo_l` của InsightFace (lưu trong `models/weights/`). Với GPU NVIDIA, cài `onnxruntime-gpu` thay cho `onnxruntime` và PyTorch bản CUDA để tăng tốc.
+
+---
+
+## 18. Tài liệu tham khảo
+
+1. G. Jocher, A. Chaurasia, J. Qiu, *Ultralytics YOLOv8*, 2023. https://github.com/ultralytics/ultralytics
+2. D. Qi, W. Tan, Q. Yao, J. Liu, "YOLO5Face: Why Reinventing a Face Detector," *ECCV Workshops*, 2022.
+3. X. Li et al., "Generalized Focal Loss: Learning Qualified and Distributed Bounding Boxes for Dense Object Detection," *NeurIPS*, 2020.
+4. Z. Zheng et al., "Distance-IoU Loss: Faster and Better Learning for Bounding Box Regression," *AAAI*, 2020 (CIoU).
+5. S. Umeyama, "Least-Squares Estimation of Transformation Parameters Between Two Point Patterns," *IEEE TPAMI*, vol. 13, no. 4, 1991.
+6. V. Lepetit, F. Moreno-Noguer, P. Fua, "EPnP: An Accurate O(n) Solution to the PnP Problem," *IJCV*, vol. 81, 2009.
+7. J. L. Pech-Pacheco et al., "Diatom autofocusing in brightfield microscopy: a comparative study," *ICPR*, 2000 (phương sai Laplacian).
+8. J. Deng, J. Guo, J. Yang, N. Xue, I. Kotsia, S. Zafeiriou, "ArcFace: Additive Angular Margin Loss for Deep Face Recognition," *IEEE CVPR*, 2019; bản mở rộng *IEEE TPAMI*, vol. 44, no. 10, 2022.
+9. K. He, X. Zhang, S. Ren, J. Sun, "Deep Residual Learning for Image Recognition," *IEEE CVPR*, 2016.
+10. H. W. Kuhn, "The Hungarian method for the assignment problem," *Naval Research Logistics Quarterly*, vol. 2, 1955.
+11. A. Bewley, Z. Ge, L. Ott, F. Ramos, B. Upcroft, "Simple Online and Realtime Tracking," *IEEE ICIP*, 2016.
+12. E. Ristani, F. Solera, R. Zou, R. Cucchiara, C. Tomasi, "Performance Measures and a Data Set for Multi-Target, Multi-Camera Tracking," *ECCV Workshops*, 2016 (IDF1).
+13. K. Bernardin, R. Stiefelhagen, "Evaluating Multiple Object Tracking Performance: The CLEAR MOT Metrics," *EURASIP JIVP*, 2008.
+14. N. Wojke, A. Bewley, D. Paulus, "Simple Online and Realtime Tracking with a Deep Association Metric," *IEEE ICIP*, 2017 (DeepSORT); Y. Zhang et al., "ByteTrack: Multi-Object Tracking by Associating Every Detection Box," *ECCV*, 2022.
+15. J. Guo, J. Deng, A. Lattas, S. Zafeiriou, "Sample and Computation Redistribution for Efficient Face Detection," *ICLR*, 2022 (SCRFD, dùng làm landmark fallback).
+16. InsightFace: 2D and 3D Face Analysis Project. https://github.com/deepinsight/insightface
