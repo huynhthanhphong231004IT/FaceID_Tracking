@@ -1,3 +1,35 @@
+<h2 align="center">
+  Author: Huynh Thanh Phong (ReoRioll)
+</h2>
+
+<p align="center">
+   Computer Science of College of Information and Communication Technology of Can Tho University (Course 48)<br>
+</p>
+
+<p>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<b>Researchs:</b> Artificial Intelligence in Education - Mathematics in Deep Learning and Machine Learning<br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<mark><b><b>Name Project:</b></b> </mark> Hệ thống nhận diện và tái định danh khuôn mặt nhiều người theo thời gian thực dựa trên YOLOv8-Face và ArcFace<br>
+
+</p>
+<p align="center">
+   <b>Presional link Information</b>
+</p>
+
+<p>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Facbook: https://www.facebook.com/huynh.thanh.phong.561667 <br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Kaggle: https://www.kaggle.com/reorioll <br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Youtobe: https://www.youtube.com/@ReoRioll-2304CICTCTU <br>
+</p>
+<br>
+
 # Face Tracker — Real-time Multi-person Face Re-Identification (YOLOv8-Face + ArcFace)
 
 > Tài liệu cơ sở lý thuyết của hệ thống nhận diện và tái định danh (Re-ID) khuôn mặt nhiều người theo thời gian thực. Nội dung trình bày theo cấu trúc của một bài báo khoa học: bài toán, kiến trúc, từng module với công thức, siêu tham số, phương pháp đánh giá và tài liệu tham khảo.
@@ -31,30 +63,37 @@
 
 Hệ thống thực hiện **phát hiện → căn chỉnh → lọc chất lượng → trích xuất embedding → so khớp → theo vết → xác nhận danh tính** trên luồng video (webcam hoặc file). Các đặc điểm chính:
 
-- **Phát hiện**: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
-- **Biểu diễn**: ArcFace (`buffalo_l`, ResNet-50 backbone, embedding 512 chiều, chuẩn hoá L2).
-- **Lọc chất lượng**: ước lượng góc đầu (yaw/pitch/roll) bằng bài toán PnP từ 5 landmark và độ nét bằng phương sai Laplacian; chỉ khung hình đạt chuẩn mới được dùng để nhận diện.
-- **Ổn định danh tính**: bỏ phiếu đồng thuận trên $N$ khung hình liên tiếp trên từng track.
-- **Học liên tục**: cập nhật vector trung bình theo thời gian và **tự đăng ký** người lạ khi bằng chứng đủ nhất quán.
-- **Lưu trữ**: mỗi người được biểu diễn bằng **một vector trung bình** (centroid) lưu trong CSV.
+\- **Phát hiện**: YOLOv8n-face (one-stage, anchor-free) cho hộp bao và 5 điểm landmark; có cơ chế dự phòng (fallback) bằng bộ phát hiện của InsightFace khi thiếu landmark.
+
+\- **Biểu diễn**: ArcFace (`buffalo_l`, ResNet-50 backbone, embedding 512 chiều, chuẩn hoá L2).
+
+\- **Lọc chất lượng**: ước lượng góc đầu (yaw/pitch/roll) bằng bài toán PnP từ 5 landmark và độ nét bằng phương sai Laplacian; chỉ khung hình đạt chuẩn mới được dùng để nhận diện.
+
+\- **Ổn định danh tính**: bỏ phiếu đồng thuận trên $N$ khung hình liên tiếp trên từng track.
+
+\- **Học liên tục**: cập nhật vector trung bình theo thời gian và **tự đăng ký** người lạ khi bằng chứng đủ nhất quán.
+
+\- **Lưu trữ**: mỗi người được biểu diễn bằng **một vector trung bình** (centroid) lưu trong CSV.
 
 ---
 
 ## 2. Phát biểu bài toán
 
-Cho chuỗi khung hình $\{I_t\}_{t=1}^{T}$. Tại mỗi khung hình, hệ thống cần xác định tập các khuôn mặt $\mathcal{F}_t=\{f_{t,i}\}$, và gán cho mỗi khuôn mặt một danh tính $y_{t,i}\in\mathcal{G}\cup\{\text{unknown}\}$ với $\mathcal{G}=\{1,\dots,M\}$ là tập danh tính đã đăng ký (gallery). Đây là bài toán **open-set identification**: mặt có thể không thuộc gallery và phải bị từ chối.
+<p>
+  Cho chuỗi khung hình <img src="https://latex.codecogs.com/svg.image?\{I_t\}_{t=1}^{T}" title="I_t" />. Tại mỗi khung hình, hệ thống cần xác định tập các khuôn mặt <img src="https://latex.codecogs.com/svg.image?\mathcal{F}_t=\{f_{t,i}\}" title="F_t" />, và gán cho mỗi khuôn mặt một danh tính <img src="https://latex.codecogs.com/svg.image?y_{t,i}\in\mathcal{G}\cup\{\text{unknown}\}" title="y_{t,i}" /> với <img src="https://latex.codecogs.com/svg.image?\mathcal{G}=\{1,\dots,M\}" title="G" /> là tập danh tính đã đăng ký (gallery). Đây là bài toán open-set identification: mặt có thể không thuộc gallery và phải bị từ chối.
+</p>
 
-Gọi $\phi:\mathbb{R}^{112\times112\times3}\to\mathbb{S}^{511}$ là bộ trích xuất đặc trưng ánh xạ ảnh mặt đã căn chỉnh lên siêu cầu đơn vị. Danh tính được quyết định theo:
+<p>
+  Gọi <img src="https://latex.codecogs.com/svg.image?\phi:\mathbb{R}^{112\times112\times3}\to\mathbb{S}^{511}" title="phi function" /> là bộ trích xuất đặc trưng ánh xạ ảnh mặt đã căn chỉnh lên siêu cầu đơn vị. Danh tính được quyết định theo:
+</p>
 
-$$
-\hat y(f)=
-\begin{cases}
-\arg\min_{g\in\mathcal{G}} d\big(\phi(f),\mu_g\big) & \text{nếu } \min_g d(\phi(f),\mu_g)<\tau_m\\[4pt]
-\text{unknown} & \text{ngược lại}
-\end{cases}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\hat{y}(f)=\begin{cases}\arg\min_{g\in\mathcal{G}}d\big(\phi(f),\mu_g\big)&\text{nếu&space;}\min_gd(\phi(f),\mu_g)<\tau_m\\\text{unknown}&\text{ngược&space;lại}\end{cases}" title="Identity Decision Formula" />
+</p>
 
-với $\mu_g$ là vector trung bình của danh tính $g$, $d(\mathbf{a},\mathbf{b})=1-\mathbf{a}^\top\mathbf{b}$ là khoảng cách cosine, và $\tau_m$ là ngưỡng so khớp (`MATCH_DISTANCE_THRESHOLD = 0.45`).
+<p>
+  với <img src="https://latex.codecogs.com/svg.image?\mu_g" title="mu_g" /> là vector trung bình của danh tính <img src="https://latex.codecogs.com/svg.image?g" title="g" />, <img src="https://latex.codecogs.com/svg.image?d(\mathbf{a},\mathbf{b})=1-\mathbf{a}^\top\mathbf{b}" title="d(a,b)" /> là khoảng cách cosine, và <img src="https://latex.codecogs.com/svg.image?\tau_m" title="tau_m" /> là ngưỡng so khớp (<code>MATCH_DISTANCE_THRESHOLD = 0.45</code>).
+</p>
 
 ---
 
@@ -160,135 +199,162 @@ $$
 
 ## 5. Căn chỉnh khuôn mặt (Face Alignment)
 
-ArcFace được huấn luyện trên ảnh mặt chuẩn hoá $112\times112$. Với 5 landmark phát hiện được $\{\mathbf{p}_j\}$ và 5 điểm mẫu chuẩn $\{\mathbf{q}_j\}$, ta tìm phép biến đổi đồng dạng (*similarity transform*: tỉ lệ, quay, tịnh tiến) tối ưu theo bình phương tối thiểu:
+<p>
+  ArcFace được huấn luyện trên ảnh mặt chuẩn hoá <img src="https://latex.codecogs.com/svg.image?112\times112" title="112x112" />. Với 5 landmark phát hiện được <img src="https://latex.codecogs.com/svg.image?\{\mathbf{p}_j\}" title="p_j" /> và 5 điểm mẫu chuẩn <img src="https://latex.codecogs.com/svg.image?\{\mathbf{q}_j\}" title="q_j" />, ta tìm phép biến đổi đồng dạng (<em>similarity transform</em>: tỉ lệ, quay, tịnh tiến) tối ưu theo bình phương tối thiểu:
+</p>
 
-$$
-\min_{s,\mathbf{R},\mathbf{t}}\ \sum_{j=1}^{5}\big\|\,s\mathbf{R}\mathbf{p}_j+\mathbf{t}-\mathbf{q}_j\big\|_2^2,\qquad \mathbf{R}\in SO(2)
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\min_{s,\mathbf{R},\mathbf{t}}\sum_{j=1}^{5}\big\|s\mathbf{R}\mathbf{p}_j&plus;\mathbf{t}-\mathbf{q}_j\big\|_2^2,\qquad\mathbf{R}\in&space;SO(2)" title="Similarity Transform Optimization" />
+</p>
 
-Nghiệm đóng được cho bởi phương pháp Umeyama [[5]](#18-tài-liệu-tham-khảo) thông qua SVD của ma trận hiệp phương sai chéo:
+<p>
+  Nghiệm đóng được cho bởi phương pháp Umeyama thông qua SVD của ma trận hiệp phương sai chéo:
+</p>
 
-$$
-\boldsymbol{\Sigma}=\frac{1}{5}\sum_j(\mathbf{q}_j-\bar{\mathbf{q}})(\mathbf{p}_j-\bar{\mathbf{p}})^\top=\mathbf{U}\mathbf{D}\mathbf{V}^\top,\quad
-\mathbf{R}=\mathbf{U}\mathbf{S}\mathbf{V}^\top,\quad
-s=\frac{\operatorname{tr}(\mathbf{D}\mathbf{S})}{\sigma_p^2},\quad
-\mathbf{t}=\bar{\mathbf{q}}-s\mathbf{R}\bar{\mathbf{p}}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\boldsymbol{\Sigma}=\frac{1}{5}\sum_j(\mathbf{q}_j-\bar{\mathbf{q}})(\mathbf{p}_j-\bar{\mathbf{p}})^\top=\mathbf{U}\mathbf{D}\mathbf{V}^\top,\quad\mathbf{R}=\mathbf{U}\mathbf{S}\mathbf{V}^\top,\quad&space;s=\frac{\operatorname{tr}(\mathbf{D}\mathbf{S})}{\sigma_p^2},\quad\mathbf{t}=\bar{\mathbf{q}}-s\mathbf{R}\bar{\mathbf{p}}" title="Umeyama Solution" />
+</p>
 
-Ảnh được warp bằng phép biến đổi affine tương ứng thành ảnh $112\times112$ (`insightface.utils.face_align.norm_crop`, `ALIGN_SIZE = 112`).
+<p>
+  Ảnh được warp bằng phép biến đổi affine tương ứng thành ảnh <img src="https://latex.codecogs.com/svg.image?112\times112" title="112x112" /> (<code>insightface.utils.face_align.norm_crop</code>, <code>ALIGN_SIZE = 112</code>).
+</p>
 
 ---
 
 ## 6. Đánh giá chất lượng: tư thế đầu và độ nét
 
-Embedding từ mặt nghiêng, mờ hoặc quá nhỏ kém tin cậy và làm nhiễu cơ sở dữ liệu. Hệ thống áp dụng **cổng chất lượng** (*quality gate*) trước khi trích xuất đặc trưng. Một khung mặt là `is_good` khi **đồng thời** thoả cả ba điều kiện:
+<p>
+  Embedding từ mặt nghiêng, mờ hoặc quá nhỏ kém tin cậy và làm nhiễu cơ sở dữ liệu. Hệ thống áp dụng <strong>cổng chất lượng</strong> (<em>quality gate</em>) trước khi trích xuất đặc trưng. Một khung mặt là <code>is_good</code> khi <strong>đồng thời</strong> thoả cả ba điều kiện:
+</p>
 
-$$
-\min(w_b,h_b)\ge s_{\min},\qquad
-|\theta_{\mathrm{yaw}}|\le 20^\circ,\ |\theta_{\mathrm{pitch}}|\le 20^\circ,\ |\theta_{\mathrm{roll}}|\le 20^\circ,\qquad
-\mathrm{Var}(\nabla^2 G)\ge \tau_b
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\min(w_b,h_b)\ge&space;s_{\min},\qquad|\theta_{\mathrm{yaw}}|\le&space;20^\circ,\&space;|\theta_{\mathrm{pitch}}|\le&space;20^\circ,\&space;|\theta_{\mathrm{roll}}|\le&space;20^\circ,\qquad\mathrm{Var}(\nabla^2&space;G)\ge&space;\tau_b" title="Quality Gate Condition" />
+</p>
 
-### 6.1 Ước lượng tư thế đầu bằng PnP
+<h3>6.1 Ước lượng tư thế đầu bằng PnP</h3>
 
-Dùng mô hình mặt 3D thô gồm 5 điểm $\mathbf{X}_j$ (mắt trái, mắt phải, mũi, khoé miệng trái, khoé miệng phải) và 5 landmark 2D $\mathbf{x}_j$, ta giải bài toán **Perspective-n-Point** bằng cực tiểu hoá sai số tái chiếu:
+<p>
+  Dùng mô hình mặt 3D thô gồm 5 điểm <img src="https://latex.codecogs.com/svg.image?\mathbf{X}_j" title="X_j" /> (mắt trái, mắt phải, mũi, khoé miệng trái, khoé miệng phải) và 5 landmark 2D <img src="https://latex.codecogs.com/svg.image?\mathbf{x}_j" title="x_j" />, ta giải bài toán <strong>Perspective-n-Point</strong> bằng cực tiểu hoá sai số tái chiếu:
+</p>
 
-$$
-(\mathbf{R},\mathbf{t})^\star=\arg\min_{\mathbf{R},\mathbf{t}}\sum_{j=1}^{5}\Big\|\mathbf{x}_j-\pi\big(\mathbf{K}(\mathbf{R}\mathbf{X}_j+\mathbf{t})\big)\Big\|_2^2
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?(\mathbf{R},\mathbf{t})^\star=\arg\min_{\mathbf{R},\mathbf{t}}\sum_{j=1}^{5}\Big\|\mathbf{x}_j-\pi\big(\mathbf{K}(\mathbf{R}\mathbf{X}_j&plus;\mathbf{t})\big)\Big\|_2^2" title="PnP Optimization" />
+</p>
 
-với ma trận nội tham số xấp xỉ $\mathbf{K}=\begin{bmatrix}f&0&c_x\\0&f&c_y\\0&0&1\end{bmatrix}$, $f=W$ (bề rộng ảnh), $(c_x,c_y)$ là trọng tâm các landmark, không có méo ảnh. Khởi tạo bằng EPnP [[6]](#18-tài-liệu-tham-khảo), tinh chỉnh bằng Levenberg–Marquardt (`SOLVEPNP_ITERATIVE`). Nghiệm hợp lệ yêu cầu $t_z>0$ (mặt nằm trước camera).
+<p>
+  với ma trận nội tham số xấp xỉ <img src="https://latex.codecogs.com/svg.image?\mathbf{K}=\begin{bmatrix}f&0&c_x\\0&f&c_y\\0&0&1\end{bmatrix}" title="K matrix" />, <img src="https://latex.codecogs.com/svg.image?f=W" title="f=W" /> (bề rộng ảnh), <img src="https://latex.codecogs.com/svg.image?(c_x,c_y)" title="(cx, cy)" /> là trọng tâm các landmark, không có méo ảnh. Khởi tạo bằng EPnP, tinh chỉnh bằng Levenberg–Marquardt (<code>SOLVEPNP_ITERATIVE</code>). Nghiệm hợp lệ yêu cầu <img src="https://latex.codecogs.com/svg.image?t_z>0" title="tz > 0" /> (mặt nằm trước camera).
+</p>
 
-Từ vector quay Rodrigues $\mathbf{r}\mapsto\mathbf{R}$, các góc Euler được tính (chỉ số bắt đầu từ 1):
+<p>
+  Từ vector quay Rodrigues <img src="https://latex.codecogs.com/svg.image?\mathbf{r}\mapsto\mathbf{R}" title="Rodrigues vector" />, các góc Euler được tính (chỉ số bắt đầu từ 1):
+</p>
 
-$$
-\theta_{\mathrm{yaw}}=\arcsin(-R_{31}),\qquad
-\theta_{\mathrm{pitch}}=\operatorname{atan2}(R_{32},R_{33}),\qquad
-\theta_{\mathrm{roll}}=\operatorname{atan2}(R_{21},R_{11})
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\theta_{\mathrm{yaw}}=\arcsin(-R_{31}),\qquad\theta_{\mathrm{pitch}}=\operatorname{atan2}(R_{32},R_{33}),\qquad\theta_{\mathrm{roll}}=\operatorname{atan2}(R_{21},R_{11})" title="Euler Angles" />
+</p>
 
-### 6.2 Độ nét bằng phương sai Laplacian
+<h3>6.2 Độ nét bằng phương sai Laplacian</h3>
 
-Độ nét của ảnh mặt đã căn chỉnh (chuyển xám $G$) được đo bằng phương sai của toán tử Laplace [[7]](#18-tài-liệu-tham-khảo):
+<p>
+  Độ nét của ảnh mặt đã căn chỉnh (chuyển xám <img src="https://latex.codecogs.com/svg.image?G" title="G" />) được đo bằng phương sai của toán tử Laplace:
+</p>
 
-$$
-\nabla^2 G=\frac{\partial^2G}{\partial x^2}+\frac{\partial^2G}{\partial y^2},\qquad
-S=\mathrm{Var}\big(\nabla^2 G\big)=\frac{1}{N}\sum_{x,y}\big(\nabla^2G(x,y)-\overline{\nabla^2G}\big)^2
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\nabla^2&space;G=\frac{\partial^2G}{\partial&space;x^2}&plus;\frac{\partial^2G}{\partial&space;y^2},\qquad&space;S=\mathrm{Var}\big(\nabla^2&space;G\big)=\frac{1}{N}\sum_{x,y}\big(\nabla^2G(x,y)-\overline{\nabla^2G}\big)^2" title="Laplacian Variance" />
+</p>
 
-Ảnh mờ có ít cạnh sắc nên $S$ nhỏ. Ảnh bị loại nếu $S<\tau_b$ (`BLUR_THRESHOLD = 35`).
+<p>
+  Ảnh mờ có ít cạnh sắc nên <img src="https://latex.codecogs.com/svg.image?S" title="S" /> nhỏ. Ảnh bị loại nếu <img src="https://latex.codecogs.com/svg.image?S<\tau_b" title="S < tau_b" /> (<code>BLUR_THRESHOLD = 35</code>).
+</p>
 
 ---
 
 ## 7. Trích xuất đặc trưng ArcFace
 
-### 7.1 Mô hình
+<h3>7.1 Mô hình</h3>
 
-Bộ nhận dạng là ArcFace [[8]](#18-tài-liệu-tham-khảo) trong gói `buffalo_l` của InsightFace [[16]](#18-tài-liệu-tham-khảo) (backbone dạng ResNet [[9]](#18-tài-liệu-tham-khảo)), cho đầu ra $\mathbf{e}\in\mathbb{R}^{512}$.
+<p>
+  Bộ nhận dạng là ArcFace trong gói <code>buffalo_l</code> của InsightFace (backbone dạng ResNet), cho đầu ra <img src="https://latex.codecogs.com/svg.image?\mathbf{e}\in\mathbb{R}^{512}" title="e in R^512" />.
+</p>
 
-### 7.2 Hàm mất mát Additive Angular Margin
+<h3>7.2 Hàm mất mát Additive Angular Margin</h3>
 
-Với embedding $\mathbf{x}_i$ thuộc lớp $y_i$ và trọng số lớp $\mathbf{W}_j$, sau khi chuẩn hoá $\|\mathbf{x}_i\|=\|\mathbf{W}_j\|=1$ thì logit là $\cos\theta_j$. ArcFace thêm lề góc $m$ vào lớp đúng và nhân tỉ lệ $s$:
+<p>
+  Với embedding <img src="https://latex.codecogs.com/svg.image?\mathbf{x}_i" title="x_i" /> thuộc lớp <img src="https://latex.codecogs.com/svg.image?y_i" title="y_i" /> và trọng số lớp <img src="https://latex.codecogs.com/svg.image?\mathbf{W}_j" title="W_j" />, sau khi chuẩn hoá <img src="https://latex.codecogs.com/svg.image?\|\mathbf{x}_i\|=\|\mathbf{W}_j\|=1" title="norm = 1" /> thì logit là <img src="https://latex.codecogs.com/svg.image?\cos\theta_j" title="cos theta_j" />. ArcFace thêm lề góc <img src="https://latex.codecogs.com/svg.image?m" title="m" /> vào lớp đúng và nhân tỉ lệ <img src="https://latex.codecogs.com/svg.image?s" title="s" />:
+</p>
 
-$$
-\mathcal{L}_{\mathrm{ArcFace}}=-\frac{1}{N}\sum_{i=1}^{N}\log
-\frac{e^{\,s\cos(\theta_{y_i}+m)}}{e^{\,s\cos(\theta_{y_i}+m)}+\sum_{j\ne y_i}e^{\,s\cos\theta_j}}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mathcal{L}_{\mathrm{ArcFace}}=-\frac{1}{N}\sum_{i=1}^{N}\log\frac{e^{s\cos(\theta_{y_i}&plus;m)}}{e^{s\cos(\theta_{y_i}&plus;m)}&plus;\sum_{j\ne&space;y_i}e^{s\cos\theta_j}}" title="ArcFace Loss" />
+</p>
 
-Lề góc $m$ ép các lớp tách xa nhau hơn trên siêu cầu, tăng tính phân biệt: **nội lớp gọn, liên lớp xa**. Đây là lý do khoảng cách cosine giữa hai embedding là thước đo hợp lý ở giai đoạn suy luận.
+<p>
+  Lề góc <img src="https://latex.codecogs.com/svg.image?m" title="m" /> ép các lớp tách xa nhau hơn trên siêu cầu, tăng tính phân biệt: <strong>nội lớp gọn, liên lớp xa</strong>. Đây là lý do khoảng cách cosine giữa hai embedding là thước đo hợp lý ở giai đoạn suy luận.
+</p>
 
-### 7.3 Chuẩn hoá L2 khi suy luận
+<h3>7.3 Chuẩn hoá L2 khi suy luận</h3>
 
-$$
-\hat{\mathbf{e}}=\frac{\mathbf{e}}{\max(\|\mathbf{e}\|_2,\ \epsilon)},\qquad \epsilon=10^{-12}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\hat{\mathbf{e}}=\frac{\mathbf{e}}{\max(\|\mathbf{e}\|_2,\epsilon)},\qquad\epsilon=10^{-12}" title="L2 Normalization" />
+</p>
 
-Nhờ đó tích vô hướng bằng độ tương đồng cosine và mọi phép so khớp quy về nhân ma trận. Các mặt đạt chuẩn trong một khung hình được suy luận theo **batch** để tận dụng song song.
-
----
-
-## 8. So khớp danh tính (Identity Matching)
-
-### 8.1 Khoảng cách và ma trận khoảng cách
-
-Với $n$ embedding truy vấn $\mathbf{E}\in\mathbb{R}^{n\times512}$ và gallery $\mathbf{M}\in\mathbb{R}^{M\times512}$ (mỗi hàng là vector trung bình đã chuẩn hoá):
-
-$$
-\mathbf{D}=\mathbf{1}-\mathbf{E}\mathbf{M}^\top,\qquad D_{rc}=1-\cos\theta_{rc}\in[0,2]
-$$
-
-### 8.2 Gán một-một tham lam (Greedy One-to-One Assignment)
-
-Để tránh hai mặt trong cùng khung hình cùng nhận một danh tính, tập các cặp hợp lệ $\{(r,c):D_{rc}<\tau_m\}$ được sắp xếp tăng dần theo khoảng cách và gán lần lượt, bỏ qua cặp có hàng hoặc cột đã dùng:
-
-$$
-\mathcal{P}=\{(D_{rc},r,c)\mid D_{rc}<\tau_m\},\quad \text{sắp xếp tăng dần; gán } (r,c)\text{ nếu } r\notin U_r,\ c\notin U_c
-$$
-
-Đây là xấp xỉ tham lam của bài toán gán tối ưu (thuật toán Hungarian [[10]](#18-tài-liệu-tham-khảo)), đủ chính xác khi số khuôn mặt nhỏ và các khoảng cách phân tách rõ, với độ phức tạp $O(nM\log(nM))$.
-
-### 8.3 Độ tin cậy
-
-Độ tin cậy hiển thị cho một khớp là độ tương đồng cosine $\mathrm{conf}=1-d$. Với $\tau_m=0.45$, ngưỡng tương đương $\cos\theta>0.55$. Giá trị $d_{\text{nearest}}$ (khoảng cách tới người gần nhất, kể cả khi vượt ngưỡng) được giữ lại để phục vụ cơ chế tự đăng ký (mục 11).
+<p>
+  Nhờ đó tích vô hướng bằng độ tương đồng cosine và mọi phép so khớp quy về nhân ma trận. Các mặt đạt chuẩn trong một khung hình được suy luận theo <strong>batch</strong> để tận dụng song song.
+</p>
 
 ---
 
-## 9. Theo vết đa đối tượng và bỏ phiếu thời gian
+<h2>8. So khớp danh tính (Identity Matching)</h2>
 
-### 9.1 Theo vết dựa trên IoU
+<h3>8.1 Khoảng cách và ma trận khoảng cách</h3>
 
-Mỗi hộp phát hiện được gán cho một track dựa trên ma trận IoU giữa hộp hiện tại và hộp cuối của track, theo kiểu tham lam giống SORT [[11]](#18-tài-liệu-tham-khảo) nhưng không dùng bộ lọc Kalman:
+<p>
+  Với <img src="https://latex.codecogs.com/svg.image?n" title="n" /> embedding truy vấn <img src="https://latex.codecogs.com/svg.image?\mathbf{E}\in\mathbb{R}^{n\times512}" title="E" /> và gallery <img src="https://latex.codecogs.com/svg.image?\mathbf{M}\in\mathbb{R}^{M\times512}" title="M" /> (mỗi hàng là vector trung bình đã chuẩn hoá):
+</p>
 
-$$
-\mathrm{IoU}_{dt}\ge\tau_{\mathrm{iou}}=0.30\ \Rightarrow\ \text{ứng viên ghép};\qquad
-\text{track bị xoá nếu } \text{missed}>20 \text{ khung hình}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mathbf{D}=\mathbf{1}-\mathbf{E}\mathbf{M}^\top,\qquad&space;D_{rc}=1-\cos\theta_{rc}\in[0,2]" title="Distance Matrix" />
+</p>
 
-Detection không ghép được sẽ tạo track mới (`track_id` tăng dần). Cách đơn giản này phù hợp với camera tĩnh và mặt di chuyển chậm; nhược điểm là dễ đổi ID khi các mặt giao nhau nhanh (xem mục 15.5).
+<h3>8.2 Gán một-một tham lam (Greedy One-to-One Assignment)</h3>
 
-### 9.2 Máy trạng thái của track
+<p>
+  Để tránh hai mặt trong cùng khung hình cùng nhận một danh tính, tập các cặp hợp lệ <img src="https://latex.codecogs.com/svg.image?\{(r,c):D_{rc}<\tau_m\}" title="valid pairs" /> được sắp xếp tăng dần theo khoảng cách và gán lần lượt, bỏ qua cặp có hàng hoặc cột đã dùng:
+</p>
 
-```mermaid
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mathcal{P}=\{(D_{rc},r,c)\mid&space;D_{rc}<\tau_m\},\quad\text{sắp&space;xếp&space;tăng&space;dần;&space;gán&space;}(r,c)\text{&space;nếu&space;}r\notin&space;U_r,\&space;c\notin&space;U_c" title="Greedy Assignment" />
+</p>
+
+<p>
+  Đây là xấp xỉ tham lam của bài toán gán tối ưu (thuật toán Hungarian), đủ chính xác khi số khuôn mặt nhỏ và các khoảng cách phân tách rõ, với độ phức tạp <img src="https://latex.codecogs.com/svg.image?O(nM\log(nM))" title="Complexity" />.
+</p>
+
+<h3>8.3 Độ tin cậy</h3>
+
+<p>
+  Độ tin cậy hiển thị cho một khớp là độ tương đồng cosine <img src="https://latex.codecogs.com/svg.image?\mathrm{conf}=1-d" title="conf = 1 - d" />. Với <img src="https://latex.codecogs.com/svg.image?\tau_m=0.45" title="tau_m = 0.45" />, ngưỡng tương đương <img src="https://latex.codecogs.com/svg.image?\cos\theta>0.55" title="cos theta > 0.55" />. Giá trị <img src="https://latex.codecogs.com/svg.image?d_{\text{nearest}}" title="d_nearest" /> (khoảng cách tới người gần nhất, kể cả khi vượt ngưỡng) được giữ lại để phục vụ cơ chế tự đăng ký (mục 11).
+</p>
+
+---
+
+<h2>9. Theo vết đa đối tượng và bỏ phiếu thời gian</h2>
+
+<h3>9.1 Theo vết dựa trên IoU</h3>
+
+<p>
+  Mỗi hộp phát hiện được gán cho một track dựa trên ma trận IoU giữa hộp hiện tại và hộp cuối của track, theo kiểu tham lam giống SORT nhưng không dùng bộ lọc Kalman:
+</p>
+
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mathrm{IoU}_{dt}\ge\tau_{\mathrm{iou}}=0.30\ \Rightarrow\ \text{ứng&space;viên&space;ghép};\qquad\text{track&space;bị&space;xoá&space;nếu&space;}\text{missed}>20\text{&space;khung&space;hình}" title="IoU Tracking Condition" />
+</p>
+
+<p>
+  Detection không ghép được sẽ tạo track mới (<code>track_id</code> tăng dần). Cách đơn giản này phù hợp với camera tĩnh và mặt di chuyển chậm; nhược điểm là dễ đổi ID khi các mặt giao nhau nhanh.
+</p>
+
+<h3>9.2 Máy trạng thái của track</h3>
+
 stateDiagram-v2
     [*] --> PENDING: track mới
     PENDING --> KNOWN: N phiếu liên tiếp cùng person_id
@@ -296,54 +362,57 @@ stateDiagram-v2
     UNKNOWN --> KNOWN: khớp DB đồng thuận / auto-enroll
     KNOWN --> UNKNOWN: N phiếu None liên tiếp
     KNOWN --> KNOWN: đổi sang person_id khác sau N phiếu
-```
 
-### 9.3 Quy tắc bỏ phiếu đồng thuận
+<h3>9.3 Quy tắc bỏ phiếu đồng thuận</h3>
 
-Mỗi track giữ hàng đợi $V=(v_{t-N+1},\dots,v_t)$ gồm $N=5$ phiếu gần nhất, $v_t\in\mathcal{G}\cup\{\varnothing\}$ (chỉ thêm phiếu khi khung mặt `is_good`). Trạng thái chỉ đổi khi **đồng thuận tuyệt đối**:
+<p>
+  Mỗi track giữ hàng đợi <img src="https://latex.codecogs.com/svg.image?V=(v_{t-N&plus;1},\dots,v_t)" title="Voting Queue" /> gồm <img src="https://latex.codecogs.com/svg.image?N=5" title="N=5" /> phiếu gần nhất, <img src="https://latex.codecogs.com/svg.image?v_t\in\mathcal{G}\cup\{\varnothing\}" title="v_t" /> (chỉ thêm phiếu khi khung mặt <code>is_good</code>). Trạng thái chỉ đổi khi <strong>đồng thuận tuyệt đối</strong>:
+</p>
 
-$$
-\text{state}=
-\begin{cases}
-\text{KNOWN}(g) & \text{nếu } |V|=N,\ v_i=g\ \forall i,\ g\in\mathcal{G}\\
-\text{UNKNOWN} & \text{nếu } |V|=N,\ v_i=\varnothing\ \forall i\\
-\text{giữ nguyên} & \text{ngược lại}
-\end{cases}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\text{state}=\begin{cases}\text{KNOWN}(g)&\text{nếu&space;}|V|=N,\&space;v_i=g\space\forall&space;i,\&space;g\in\mathcal{G}\\\text{UNKNOWN}&\text{nếu&space;}|V|=N,\&space;v_i=\varnothing\space\forall&space;i\\\text{giữ&space;nguyên}&\text{ngược&space;lại}\end{cases}" title="Consensus Voting State" />
+</p>
 
-Độ tin cậy của track được làm mượt bằng trung bình trượt mũ (EMA):
+<p>
+  Độ tin cậy của track được làm mượt bằng trung bình trượt mũ (EMA):
+</p>
 
-$$
-\bar s_t=0.7\,\bar s_{t-1}+0.3\,s_t
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\bar{s}_t=0.7\,\bar{s}_{t-1}&plus;0.3\,s_t" title="EMA Confidence Smoothing" />
+</p>
 
-**Lợi ích**: nếu xác suất một khung bị nhận sai là $p$ thì xác suất cả $N$ khung cùng sai theo *cùng một* danh tính chỉ cỡ $\le p^N$ (xét xấp xỉ độc lập), giảm mạnh nhận nhầm và hiện tượng nhấp nháy nhãn, đổi lại độ trễ xác nhận khoảng $N$ khung hình hợp lệ.
+<p>
+  <strong>Lợi ích</strong>: nếu xác suất một khung bị nhận sai là <img src="https://latex.codecogs.com/svg.image?p" title="p" /> thì xác suất cả <img src="https://latex.codecogs.com/svg.image?N" title="N" /> khung cùng sai theo <em>cùng một</em> danh tính chỉ cỡ <img src="https://latex.codecogs.com/svg.image?\le&space;p^N" title="p^N" /> (xét xấp xỉ độc lập), giảm mạnh nhận nhầm và hiện tượng nhấp nháy nhãn, đổi lại độ trễ xác nhận khoảng <img src="https://latex.codecogs.com/svg.image?N" title="N" /> khung hình hợp lệ.
+</p>
 
 ---
 
-## 10. Cập nhật mẫu đặc trưng trực tuyến
+<h2>10. Cập nhật mẫu đặc trưng trực tuyến</h2>
 
-Khi track đã `KNOWN` và khung hiện tại khớp **rất chắc** ($d\le\tau_u=0.30$), embedding mới được hợp nhất vào danh tính để thích nghi với thay đổi ngoại hình (ánh sáng, biểu cảm, tuổi tác). Mỗi người lưu tổng vector $\mathbf{s}_g$ và số mẫu $n_g$; vector đại diện là:
+<p>
+  Khi track đã <code>KNOWN</code> và khung hiện tại khớp <strong>rất chắc</strong> (<img src="https://latex.codecogs.com/svg.image?d\le\tau_u=0.30" title="d <= tau_u" />), embedding mới được hợp nhất vào danh tính để thích nghi với thay đổi ngoại hình (ánh sáng, biểu cảm, tuổi tác). Mỗi người lưu tổng vector <img src="https://latex.codecogs.com/svg.image?\mathbf{s}_g" title="s_g" /> và số mẫu <img src="https://latex.codecogs.com/svg.image?n_g" title="n_g" />; vector đại diện là:
+</p>
 
-$$
-\mu_g=\frac{\mathbf{s}_g}{\|\mathbf{s}_g\|_2}
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mu_g=\frac{\mathbf{s}_g}{\|\mathbf{s}_g\|_2}" title="Mean Vector Normalized" />
+</p>
 
-Cập nhật có **cửa sổ trượt xấp xỉ** với $K=$ `MAX_FEATURES_PER_PERSON = 100`:
+<p>
+  Cập nhật có <strong>cửa sổ trượt xấp xỉ</strong> với <img src="https://latex.codecogs.com/svg.image?K=" title="K=" /> <code>MAX_FEATURES_PER_PERSON = 100</code>:
+</p>
 
-$$
-\mathbf{s}_g\leftarrow
-\begin{cases}
-\mathbf{s}_g+\hat{\mathbf{e}} & n_g<K\\[2pt]
-\big(1-\tfrac{1}{K}\big)\mathbf{s}_g+\hat{\mathbf{e}} & n_g\ge K
-\end{cases}
-\qquad n_g\leftarrow n_g+1
-$$
+<p align="center">
+  <img src="https://latex.codecogs.com/svg.image?\mathbf{s}_g\leftarrow\begin{cases}\mathbf{s}_g&plus;\hat{\mathbf{e}}&n_g<K\\\big(1-\tfrac{1}{K}\big)\mathbf{s}_g&plus;\hat{\mathbf{e}}&n_g\ge&space;K\end{cases}\qquad&space;n_g\leftarrow&space;n_g&plus;1" title="Online Feature Update" />
+</p>
 
-Khi $n_g\ge K$ đây là **trung bình trượt mũ** với hệ số quên $1/K$, nên bộ nhớ $O(1)$ cho mỗi người, đồng thời giảm ảnh hưởng của mẫu cũ. Hai cơ chế bảo vệ chống "trôi danh tính" (*identity drift*):
+<p>
+  Khi <img src="https://latex.codecogs.com/svg.image?n_g\ge&space;K" title="n_g >= K" /> đây là <strong>trung bình trượt mũ</strong> với hệ số quên <img src="https://latex.codecogs.com/svg.image?1/K" title="1/K" />, nên bộ nhớ <img src="https://latex.codecogs.com/svg.image?O(1)" title="O(1)" /> cho mỗi người, đồng thời giảm ảnh hưởng của mẫu cũ. Hai cơ chế bảo vệ chống "trôi danh tính" (<em>identity drift</em>):
+</p>
 
-1. Chỉ cập nhật khi $d\le\tau_u=0.30<\tau_m=0.45$ (ngưỡng cập nhật chặt hơn ngưỡng nhận diện).
-2. Giới hạn tần suất tối thiểu `FEATURE_UPDATE_MIN_INTERVAL = 1.0` giây giữa hai lần cập nhật.
+<ol>
+  <li>Chỉ cập nhật khi <img src="https://latex.codecogs.com/svg.image?d\le\tau_u=0.30<\tau_m=0.45" title="Update threshold" /> (ngưỡng cập nhật chặt hơn ngưỡng nhận diện).</li>
+  <li>Giới hạn tần suất tối thiểu <code>FEATURE_UPDATE_MIN_INTERVAL = 1.0</code> giây giữa hai lần cập nhật.</li>
+</ol>
 
 ---
 
