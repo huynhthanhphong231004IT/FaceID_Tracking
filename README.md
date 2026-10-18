@@ -533,8 +533,6 @@ $$
 
 Trong đó thành phần chi phối là $T_{\text{det}}$ và $T_{\text{ArcFace}}$ (mạng nơ-ron); bước so khớp và theo vết là không đáng kể với $M\lesssim10^4$. Với $M$ rất lớn nên chuyển sang chỉ mục xấp xỉ (FAISS/HNSW).
 
-Độ trễ xác nhận danh tính (không tính suy luận) xấp xỉ $N/\text{FPS}_{\text{good}}$ giây, với $\text{FPS}_{\text{good}}$ là tốc độ khung đạt chuẩn.
-
 ---
 
 ## 14. Bảng siêu tham số
